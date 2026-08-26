@@ -18,12 +18,18 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    BillingScreen(),
-    ProductsScreen(),
-    ReportsScreen(),
-    SettingsScreen(),
-  ];
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      const BillingScreen(),
+      ProductsScreen(currentStaff: widget.currentStaff),
+      const ReportsScreen(),
+      const SettingsScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
