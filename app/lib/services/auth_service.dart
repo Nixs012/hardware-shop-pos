@@ -9,19 +9,31 @@ class AuthService {
   // Staff login / role check
   Future<Staff?> login(String email, String password) async {
     try {
+      final trimmedEmail = email.trim();
+      final lowerEmail = trimmedEmail.toLowerCase();
+      
       // Authenticate with Firebase
       final userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
+        email: trimmedEmail,
         password: password,
       );
 
       if (userCredential.user != null) {
-        // Fetch Staff record by email
-        final querySnapshot = await _firestore
+        // Try looking up by exactly what was entered
+        var querySnapshot = await _firestore
             .collection('staff')
-            .where('email', isEqualTo: email)
+            .where('email', isEqualTo: trimmedEmail)
             .limit(1)
             .get();
+
+        // If not found, fallback to lowercased version in case Firestore data differs
+        if (querySnapshot.docs.isEmpty && trimmedEmail != lowerEmail) {
+          querySnapshot = await _firestore
+              .collection('staff')
+              .where('email', isEqualTo: lowerEmail)
+              .limit(1)
+              .get();
+        }
 
         if (querySnapshot.docs.isNotEmpty) {
           // Verify role (admin/cashier) is handled by the Staff model
