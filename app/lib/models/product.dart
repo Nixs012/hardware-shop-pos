@@ -5,8 +5,8 @@ class Product {
   final String category;
   final double costPrice; // required
   final double sellingPrice;
-  final int quantityOnHand;
-  final int lowStockThreshold;
+  final double quantityOnHand;
+  final double lowStockThreshold;
   final String unit;
   final bool costPriceEstimated;
 
@@ -46,8 +46,8 @@ class Product {
       category: map['category'] ?? '',
       costPrice: (map['cost_price'] ?? 0.0).toDouble(),
       sellingPrice: (map['selling_price'] ?? 0.0).toDouble(),
-      quantityOnHand: map['quantity_on_hand']?.toInt() ?? 0,
-      lowStockThreshold: map['low_stock_threshold']?.toInt() ?? 5,
+      quantityOnHand: (map['quantity_on_hand'] ?? 0).toDouble(),
+      lowStockThreshold: (map['low_stock_threshold'] ?? 5).toDouble(),
       unit: map['unit'] ?? 'piece',
       costPriceEstimated: map['cost_price_estimated'] ?? false,
     );

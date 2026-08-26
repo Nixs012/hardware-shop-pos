@@ -1,6 +1,6 @@
 class SaleLineItem {
   final String productId;
-  final int quantity;
+  final double quantity;
   final double unitPriceAtSale;
   final double unitCostAtSale;
 
@@ -23,7 +23,7 @@ class SaleLineItem {
   factory SaleLineItem.fromMap(Map<String, dynamic> map) {
     return SaleLineItem(
       productId: map['product_id'] ?? '',
-      quantity: map['quantity']?.toInt() ?? 0,
+      quantity: (map['quantity'] ?? 0).toDouble(),
       unitPriceAtSale: (map['unit_price_at_sale'] ?? 0.0).toDouble(),
       unitCostAtSale: (map['unit_cost_at_sale'] ?? 0.0).toDouble(),
     );
