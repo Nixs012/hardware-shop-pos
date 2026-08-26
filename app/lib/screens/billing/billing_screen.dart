@@ -5,15 +5,8 @@ class BillingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Image.asset(
-          'assets/images/logo.png',
-          height: 32,
-        ),
-        centerTitle: true,
-      ),
-      body: const Center(child: Text('Billing Screen')),
+    return const Scaffold(
+      body: Center(child: Text('Billing Screen')),
     );
   }
 }

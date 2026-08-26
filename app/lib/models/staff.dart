@@ -2,6 +2,7 @@ class Staff {
   final String id;
   final String name;
   final String role; // admin/cashier
+  final String email;
   final String? pin;
   final String? authUid;
 
@@ -9,6 +10,7 @@ class Staff {
     required this.id,
     required this.name,
     required this.role,
+    required this.email,
     this.pin,
     this.authUid,
   });
@@ -18,6 +20,7 @@ class Staff {
       'id': id,
       'name': name,
       'role': role,
+      'email': email,
       'pin': pin,
       'auth_uid': authUid,
     };
@@ -28,6 +31,7 @@ class Staff {
       id: id,
       name: map['name'] ?? '',
       role: map['role'] ?? 'cashier',
+      email: map['email'] ?? '',
       pin: map['pin'],
       authUid: map['auth_uid'],
     );

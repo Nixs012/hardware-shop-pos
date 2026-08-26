@@ -3,9 +3,13 @@ import 'billing/billing_screen.dart';
 import 'products/products_screen.dart';
 import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
+import '../models/staff.dart';
+import '../utils/theme.dart';
 
 class MainLayout extends StatefulWidget {
-  const MainLayout({super.key});
+  final Staff currentStaff;
+
+  const MainLayout({super.key, required this.currentStaff});
 
   @override
   State<MainLayout> createState() => _MainLayoutState();
@@ -24,6 +28,23 @@ class _MainLayoutState extends State<MainLayout> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppTheme.backgroundColor,
+        elevation: 1,
+        title: Text(
+          '${widget.currentStaff.name} (${widget.currentStaff.role.toUpperCase()})',
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Image.asset(
+              'assets/images/logo.png',
+              height: 32,
+            ),
+          ),
+        ],
+      ),
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,

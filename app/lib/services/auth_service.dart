@@ -16,10 +16,10 @@ class AuthService {
       );
 
       if (userCredential.user != null) {
-        // Fetch Staff record by authUid
+        // Fetch Staff record by email
         final querySnapshot = await _firestore
             .collection('staff')
-            .where('auth_uid', isEqualTo: userCredential.user!.uid)
+            .where('email', isEqualTo: email)
             .limit(1)
             .get();
 

@@ -44,7 +44,7 @@ class _AuthScreenState extends State<AuthScreen> {
         // Role check can happen here or globally.
         // Navigate to the main app layout.
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MainLayout()),
+          MaterialPageRoute(builder: (_) => MainLayout(currentStaff: staff)),
         );
       } else {
         setState(() {
@@ -104,13 +104,13 @@ class _AuthScreenState extends State<AuthScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
+                      color: Colors.black.withValues(alpha: 0.5),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
                   ],
                   border: Border.all(
-                    color: AppTheme.secondaryColor.withOpacity(0.2),
+                    color: AppTheme.secondaryColor.withValues(alpha: 0.2),
                   ),
                 ),
                 padding: const EdgeInsets.all(32.0),
@@ -127,7 +127,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Sign in to Shamamo POS',
-                      style: TextStyle(color: AppTheme.secondaryColor.withOpacity(0.8)),
+                      style: TextStyle(color: AppTheme.secondaryColor.withValues(alpha: 0.8)),
                     ),
                     const SizedBox(height: 32),
                     
@@ -136,9 +136,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
+                          color: Colors.red.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -165,7 +165,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         labelStyle: const TextStyle(color: AppTheme.secondaryColor),
                         prefixIcon: const Icon(Icons.email_outlined, color: AppTheme.secondaryColor),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.05),
+                        fillColor: Colors.white.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -189,7 +189,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         labelStyle: const TextStyle(color: AppTheme.secondaryColor),
                         prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.secondaryColor),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.05),
+                        fillColor: Colors.white.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,

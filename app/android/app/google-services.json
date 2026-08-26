@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "588255666245",
+    "project_id": "shamamo-pos",
+    "storage_bucket": "shamamo-pos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588255666245:android:01f93abb37ed5009c6c32c",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMsjS7xThIaOqpSZNBpOhfzQ9A_3qd1z0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
