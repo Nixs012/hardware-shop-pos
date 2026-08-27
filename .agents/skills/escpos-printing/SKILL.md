@@ -11,10 +11,11 @@ ESC/POS is a command language most thermal receipt printers understand, regardle
 
 ## 2. Recommended library (Flutter)
 
-Use `esc_pos_bluetooth` (Bluetooth) paired with `esc_pos_utils` (formatting/rendering) for Flutter. For USB printers, use `esc_pos_printer` or a USB-serial bridge package depending on the target Android device's USB host support.
+Use `unified_esc_pos_printer` for Flutter. It provides a single `PrinterManager` API to connect to and print via Bluetooth (Classic and BLE), USB, and Network (Ethernet/WiFi).
 
-- Support **both 58mm and 80mm paper widths** — this is a connection setting, not a code branch; the library takes a `PaperSize` enum (`mm58` / `mm80`) and adjusts character-per-line automatically (58mm ≈ 32 chars/line, 80mm ≈ 48 chars/line at default font).
-- Pairing flow: scan for Bluetooth devices → let the user select and pair once → persist the printer's MAC address in local settings so it reconnects automatically on every future sale without re-pairing.
+- Support **both 58mm and 80mm paper widths** — this is set during ticket creation using `Ticket.create(PaperSize.mm58)` or `Ticket.create(PaperSize.mm80)`.
+- Formatting/rendering is done using the built-in `Ticket` API rather than needing external packages like `esc_pos_utils`.
+- Connection flow: scan for Bluetooth/USB/Network devices → let the user select and connect → save the connection parameters (e.g. MAC address, IP, or USB path) in local settings for automated reconnection.
 
 ## 3. Receipt Template (this shop's default layout)
 
