@@ -26,7 +26,7 @@ class _MainLayoutState extends State<MainLayout> {
     _screens = [
       BillingScreen(currentStaff: widget.currentStaff),
       ProductsScreen(currentStaff: widget.currentStaff),
-      const ReportsScreen(),
+      ReportsScreen(currentStaff: widget.currentStaff),
       const SettingsScreen(),
     ];
   }

@@ -36,4 +36,10 @@ class FirestoreService {
 
     await batch.commit();
   }
+
+  Stream<List<Sale>> getSalesStream() {
+    return _db.collection('sales').orderBy('timestamp', descending: true).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => Sale.fromMap(doc.data(), doc.id)).toList();
+    });
+  }
 }
