@@ -15,6 +15,8 @@ class Sale {
     required this.lineItems,
   });
 
+  double get totalAmount => lineItems.fold(0, (sum, item) => sum + (item.unitPriceAtSale * item.quantity));
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
