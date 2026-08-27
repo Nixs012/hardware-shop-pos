@@ -19,7 +19,21 @@ class FirestoreService {
     });
   }
 
-  Future<void> addSale(Sale sale) {
-    return _db.collection('sales').doc(sale.id).set(sale.toMap());
+  Future<void> processSale(Sale sale) async {
+    final batch = _db.batch();
+
+    // Add sale document
+    final saleRef = _db.collection('sales').doc(sale.id);
+    batch.set(saleRef, sale.toMap());
+
+    // Atomically decrement stock for each line item
+    for (final item in sale.lineItems) {
+      final productRef = _db.collection('products').doc(item.productId);
+      batch.update(productRef, {
+        'quantity_on_hand': FieldValue.increment(-item.quantity),
+      });
+    }
+
+    await batch.commit();
   }
 }

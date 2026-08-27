@@ -24,7 +24,7 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     _screens = [
-      const BillingScreen(),
+      BillingScreen(currentStaff: widget.currentStaff),
       ProductsScreen(currentStaff: widget.currentStaff),
       const ReportsScreen(),
       const SettingsScreen(),
