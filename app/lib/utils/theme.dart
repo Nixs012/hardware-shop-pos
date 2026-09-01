@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // Brand Colors
-  static const Color primaryColor = Color(0xFF1B3A6B); // Deep Navy Blue
-  static const Color secondaryColor = Color(0xFFB8BCC4); // Brushed Steel / Silver
+  static const Color primaryColor = Color(
+    0xFF4DA3FF,
+  ); // High-contrast accent blue
+  static const Color secondaryColor = Color(
+    0xFFB8BCC4,
+  ); // Brushed Steel / Silver
   static const Color backgroundColor = Color(0xFF1A1A1A); // Dark Charcoal
 
   static ThemeData get darkTheme {

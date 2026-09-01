@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'dart:async';
+
 import 'package:uuid/uuid.dart';
 
 import '../../models/product.dart';
@@ -6,6 +9,7 @@ import '../../models/sale.dart';
 import '../../models/sale_line_item.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
+import '../../services/printer_service.dart';
 import '../../utils/theme.dart';
 
 class BillingScreen extends StatefulWidget {
@@ -19,6 +23,7 @@ class BillingScreen extends StatefulWidget {
 
 class _BillingScreenState extends State<BillingScreen> {
   final _firestoreService = FirestoreService();
+  final _printerService = PrinterService();
   final _searchController = TextEditingController();
 
   String _searchQuery = '';
@@ -26,6 +31,7 @@ class _BillingScreenState extends State<BillingScreen> {
 
   // Cart state: keyed by product ID
   final Map<String, SaleLineItem> _cart = {};
+  Sale? _lastCompletedSale;
 
   @override
   void initState() {
@@ -205,10 +211,92 @@ class _BillingScreenState extends State<BillingScreen> {
           duration: const Duration(seconds: 4),
         ),
       );
+      _lastCompletedSale = sale;
+      unawaited(_printSale(sale));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _printSale(Sale sale) async {
+    final items = sale.lineItems.map((item) {
+      final matchingProducts = _allProducts.where(
+        (p) => p.id == item.productId,
+      );
+      final product = matchingProducts.isEmpty ? null : matchingProducts.first;
+      return ReceiptItem(
+        name: product?.name ?? item.productId,
+        quantity: item.quantity,
+        total: item.unitPriceAtSale * item.quantity,
+      );
+    }).toList();
+
+    try {
+      await _printerService.printSale(
+        sale: sale,
+        staffName: widget.currentStaff.name,
+        items: items,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().contains('not connected')
+                ? 'Printer not connected'
+                : error.toString().contains('PrinterWriteException') ||
+                      error.toString().contains('PrinterConnectionException')
+                ? 'Printer disconnected or out of paper'
+                : 'Printer error: $error',
+          ),
+          backgroundColor: Colors.orange,
+          action: SnackBarAction(
+            label: 'Reconnect',
+            onPressed: () => unawaited(_reconnectAndPrint(sale)),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _reconnectAndPrint(Sale sale) async {
+    final connected = await _printerService.autoReconnect();
+    if (!mounted) return;
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Printer not connected. Pair it from Settings first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    await _printSale(sale);
+  }
+
+  Future<void> _reprintLastReceipt() async {
+    try {
+      final sale =
+          _lastCompletedSale ?? await _firestoreService.getLatestSale();
+      if (sale == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No completed sale is available to reprint.'),
+            ),
+          );
+        }
+        return;
+      }
+      await _printSale(sale);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to load the last sale: $error')),
         );
       }
     }
@@ -401,6 +489,8 @@ class _BillingScreenState extends State<BillingScreen> {
                           const Spacer(),
                           Text(
                             'KSh ${product.sellingPrice.toStringAsFixed(2)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppTheme.primaryColor,
                               fontWeight: FontWeight.bold,
@@ -514,6 +604,8 @@ class _BillingScreenState extends State<BillingScreen> {
                               ),
                               Text(
                                 'KSh ${item.unitPriceAtSale.toStringAsFixed(2)} each',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: AppTheme.secondaryColor,
                                   fontSize: 12,
@@ -552,9 +644,11 @@ class _BillingScreenState extends State<BillingScreen> {
                           ],
                         ),
                         SizedBox(
-                          width: 70,
+                          width: 96,
                           child: Text(
                             'KSh ${(item.unitPriceAtSale * item.quantity).toStringAsFixed(2)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               color: AppTheme.primaryColor,
@@ -572,6 +666,14 @@ class _BillingScreenState extends State<BillingScreen> {
           color: Colors.white.withValues(alpha: 0.05),
           child: Column(
             children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _reprintLastReceipt,
+                  icon: const Icon(Icons.receipt_long),
+                  label: const Text('Reprint last receipt'),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -583,12 +685,17 @@ class _BillingScreenState extends State<BillingScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  Text(
-                    'KSh ${_cartTotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  Flexible(
+                    child: Text(
+                      'KSh ${_cartTotal.toStringAsFixed(2)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../models/staff.dart';
 import '../../models/sale.dart';
 import '../../models/product.dart';
@@ -16,7 +17,7 @@ class ReportsScreen extends StatefulWidget {
 
 class _ReportsScreenState extends State<ReportsScreen> {
   final _firestoreService = FirestoreService();
-  
+
   // Segmented control value: 0 = Daily, 1 = Weekly, 2 = Monthly
   int _selectedPeriodIndex = 0;
 
@@ -33,10 +34,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final daysToSubtract = now.weekday - 1;
         final monday = now.subtract(Duration(days: daysToSubtract));
         final start = DateTime(monday.year, monday.month, monday.day);
-        
+
         final daysToAdd = 7 - now.weekday;
         final sunday = now.add(Duration(days: daysToAdd));
-        final end = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59, 999);
+        final end = DateTime(
+          sunday.year,
+          sunday.month,
+          sunday.day,
+          23,
+          59,
+          59,
+          999,
+        );
         return DateTimeRange(start: start, end: end);
       case 2: // Monthly
       default:
@@ -87,14 +96,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return const Center(child: Text('Error loading sales data', style: TextStyle(color: Colors.red)));
+          return const Center(
+            child: Text(
+              'Error loading sales data',
+              style: TextStyle(color: Colors.red),
+            ),
+          );
         }
 
         final sales = snapshot.data ?? [];
-        
+
         // Filter sales by the local timezone range
         final filteredSales = sales.where((sale) {
-          return sale.timestamp.isAfter(range.start) && sale.timestamp.isBefore(range.end);
+          return sale.timestamp.isAfter(range.start) &&
+              sale.timestamp.isBefore(range.end);
         }).toList();
 
         double totalRevenue = 0;
@@ -109,8 +124,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
         for (final sale in filteredSales) {
           totalRevenue += sale.totalAmount;
-          paymentBreakdown[sale.paymentMethod] = (paymentBreakdown[sale.paymentMethod] ?? 0.0) + sale.totalAmount;
-          
+          paymentBreakdown[sale.paymentMethod] =
+              (paymentBreakdown[sale.paymentMethod] ?? 0.0) + sale.totalAmount;
+
           for (final item in sale.lineItems) {
             totalProfit += item.profit;
           }
@@ -148,10 +164,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
               const SizedBox(height: 24),
               const Text(
                 'Payment Method Breakdown',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
-              ...paymentBreakdown.entries.map((entry) => _buildPaymentRow(entry.key, entry.value)),
+              ...paymentBreakdown.entries.map(
+                (entry) => _buildPaymentRow(entry.key, entry.value),
+              ),
             ],
           ),
         );
@@ -169,13 +191,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return const Center(child: Text('Error loading P&L data', style: TextStyle(color: Colors.red)));
+          return const Center(
+            child: Text(
+              'Error loading P&L data',
+              style: TextStyle(color: Colors.red),
+            ),
+          );
         }
 
         final sales = snapshot.data ?? [];
-        
+
         final filteredSales = sales.where((sale) {
-          return sale.timestamp.isAfter(range.start) && sale.timestamp.isBefore(range.end);
+          return sale.timestamp.isAfter(range.start) &&
+              sale.timestamp.isBefore(range.end);
         }).toList();
 
         double revenue = 0;
@@ -201,19 +229,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 color: Colors.white.withValues(alpha: 0.05),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
+                  side: BorderSide(
+                    color: AppTheme.secondaryColor.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      _buildPLRow('Gross Revenue', 'KSh ${revenue.toStringAsFixed(2)}', Colors.white),
-                      const Divider(color: Colors.white24, height: 24),
-                      _buildPLRow('Cost of Goods Sold (COGS)', '-KSh ${costOfGoodsSold.toStringAsFixed(2)}', Colors.redAccent),
+                      _buildPLRow(
+                        'Gross Revenue',
+                        'KSh ${revenue.toStringAsFixed(2)}',
+                        Colors.white,
+                      ),
                       const Divider(color: Colors.white24, height: 24),
                       _buildPLRow(
-                        'Net Profit', 
-                        'KSh ${netProfit.toStringAsFixed(2)}', 
+                        'Cost of Goods Sold (COGS)',
+                        '-KSh ${costOfGoodsSold.toStringAsFixed(2)}',
+                        Colors.redAccent,
+                      ),
+                      const Divider(color: Colors.white24, height: 24),
+                      _buildPLRow(
+                        'Net Profit',
+                        'KSh ${netProfit.toStringAsFixed(2)}',
                         netProfit >= 0 ? Colors.green : Colors.red,
                         isBold: true,
                         fontSize: 20,
@@ -237,14 +275,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return const Center(child: Text('Error loading stock inventory', style: TextStyle(color: Colors.red)));
+          return const Center(
+            child: Text(
+              'Error loading stock inventory',
+              style: TextStyle(color: Colors.red),
+            ),
+          );
         }
 
         final products = snapshot.data ?? [];
 
         if (products.isEmpty) {
           return const Center(
-            child: Text('No inventory records found.', style: TextStyle(color: AppTheme.secondaryColor)),
+            child: Text(
+              'No inventory records found.',
+              style: TextStyle(color: AppTheme.secondaryColor),
+            ),
           );
         }
 
@@ -253,7 +299,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
           itemCount: products.length,
           itemBuilder: (context, index) {
             final product = products[index];
-            final isLowStock = product.quantityOnHand <= product.lowStockThreshold;
+            final isLowStock =
+                product.quantityOnHand <= product.lowStockThreshold;
 
             return Card(
               color: Colors.white.withValues(alpha: 0.05),
@@ -261,17 +308,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: isLowStock ? Colors.orange.withValues(alpha: 0.5) : Colors.transparent,
+                  color: isLowStock
+                      ? Colors.orange.withValues(alpha: 0.5)
+                      : Colors.transparent,
                 ),
               ),
               child: ListTile(
                 title: Text(
                   product.name,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 subtitle: Text(
                   'SKU: ${product.sku}  •  Category: ${product.category}',
-                  style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 12),
+                  style: const TextStyle(
+                    color: AppTheme.secondaryColor,
+                    fontSize: 12,
+                  ),
                 ),
                 trailing: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -288,7 +343,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     if (isLowStock)
                       const Text(
                         'Low Stock',
-                        style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                   ],
                 ),
@@ -341,10 +400,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
           backgroundColor: color.withValues(alpha: 0.1),
           child: Icon(icon, color: color),
         ),
-        title: Text(title, style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 14)),
-        trailing: Text(
-          value,
-          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        title: Text(
+          title,
+          style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 14),
+        ),
+        trailing: SizedBox(
+          width: 170,
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       ),
     );
@@ -361,16 +433,35 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(method, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-          Text('KSh ${amount.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(
+              method,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Flexible(
+            child: Text(
+              'KSh ${amount.toStringAsFixed(2)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: AppTheme.primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildPLRow(
-    String label, 
-    String value, 
+    String label,
+    String value,
     Color valColor, {
     bool isBold = false,
     double fontSize = 16,
@@ -378,21 +469,30 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label, 
-          style: TextStyle(
-            color: Colors.white, 
-            fontSize: fontSize, 
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal
-          )
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
         ),
-        Text(
-          value, 
-          style: TextStyle(
-            color: valColor, 
-            fontSize: fontSize, 
-            fontWeight: FontWeight.bold
-          )
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: valColor,
+              fontSize: fontSize,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       ],
     );

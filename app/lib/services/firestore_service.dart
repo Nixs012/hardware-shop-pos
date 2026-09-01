@@ -131,4 +131,15 @@ class FirestoreService {
               .toList();
         });
   }
+
+  Future<Sale?> getLatestSale() async {
+    final snapshot = await _db
+        .collection('sales')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get(const GetOptions(source: Source.cache));
+    if (snapshot.docs.isEmpty) return null;
+    final doc = snapshot.docs.first;
+    return Sale.fromMap(doc.data(), doc.id);
+  }
 }

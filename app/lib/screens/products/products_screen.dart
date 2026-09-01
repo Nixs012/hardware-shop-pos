@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../models/staff.dart';
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
@@ -54,7 +55,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
             itemCount: products.length,
             itemBuilder: (context, index) {
               final product = products[index];
-              final isLowStock = product.quantityOnHand <= product.lowStockThreshold;
+              final isLowStock =
+                  product.quantityOnHand <= product.lowStockThreshold;
 
               return Card(
                 color: Colors.white.withValues(alpha: 0.05),
@@ -62,12 +64,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
-                    color: isLowStock ? Colors.orange.withValues(alpha: 0.5) : Colors.transparent,
+                    color: isLowStock
+                        ? Colors.orange.withValues(alpha: 0.5)
+                        : Colors.transparent,
                     width: 1,
                   ),
                 ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
                   title: Row(
                     children: [
                       Expanded(
@@ -81,7 +88,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                       ),
                       if (isLowStock)
-                        const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
                     ],
                   ),
                   subtitle: Padding(
@@ -91,35 +102,51 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       children: [
                         Text(
                           'Category: ${product.category}  •  Stock: ${product.quantityOnHand} ${product.unit}',
-                          style: const TextStyle(color: AppTheme.secondaryColor),
+                          style: const TextStyle(
+                            color: AppTheme.secondaryColor,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Text(
-                              'Price: KSh ${product.sellingPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
+                            Expanded(
+                              child: Text(
+                                'Price: KSh ${product.sellingPrice.toStringAsFixed(2)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppTheme.primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                             if (_isAdmin) ...[
                               const SizedBox(width: 16),
-                              Text(
-                                'Cost: KSh ${product.costPrice.toStringAsFixed(2)}',
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                              Flexible(
+                                child: Text(
+                                  'Cost: KSh ${product.costPrice.toStringAsFixed(2)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                  ),
+                                ),
                               ),
-                            ]
+                            ],
                           ],
-                        )
+                        ),
                       ],
                     ),
                   ),
-                  trailing: _isAdmin 
+                  trailing: _isAdmin
                       ? const Icon(Icons.edit, color: AppTheme.secondaryColor)
                       : null,
-                  onTap: _isAdmin 
+                  onTap: _isAdmin
                       ? () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => ProductFormScreen(existingProduct: product),
+                              builder: (_) =>
+                                  ProductFormScreen(existingProduct: product),
                             ),
                           );
                         }

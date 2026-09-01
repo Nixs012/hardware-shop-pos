@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 
 import '../../models/failed_sale.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
+import '../../services/printer_service.dart';
 import '../../utils/theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -16,7 +18,14 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _firestoreService = FirestoreService();
+  final _printerService = PrinterService();
+  final _shopNameController = TextEditingController();
+  final _addressPhoneController = TextEditingController();
+  final _footerController = TextEditingController();
   late Future<List<FailedSaleRecord>> _failedSalesFuture;
+  PaperSize _paperSize = PaperSize.mm58;
+  bool _printerConnected = false;
+  bool _scanning = false;
 
   bool get _isAdmin => widget.currentStaff.role.toLowerCase() == 'admin';
 
@@ -24,6 +33,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _failedSalesFuture = _loadFailedSales();
+    _loadPrinterSettings();
+  }
+
+  Future<void> _loadPrinterSettings() async {
+    _shopNameController.text = await _printerService.getShopName();
+    _addressPhoneController.text = await _printerService.getAddressPhone();
+    _footerController.text = await _printerService.getFooterMessage();
+    _paperSize = await _printerService.getPaperSize();
+    _printerConnected = await _printerService.autoReconnect();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _shopNameController.dispose();
+    _addressPhoneController.dispose();
+    _footerController.dispose();
+    _printerService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scanPrinters() async {
+    setState(() => _scanning = true);
+    try {
+      final printers = await _printerService.scanBluetoothPrinters();
+      if (!mounted) return;
+      if (printers.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No Bluetooth printers found.')),
+        );
+        return;
+      }
+      final selected = await showDialog<BluetoothPrinterDevice>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('Select Bluetooth Printer'),
+          children: printers
+              .map(
+                (printer) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(context, printer),
+                  child: Text('${printer.name}\n${printer.address}'),
+                ),
+              )
+              .toList(),
+        ),
+      );
+      if (selected == null) return;
+      await _printerService.connectToPrinter(selected);
+      if (mounted) {
+        setState(() => _printerConnected = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Printer connected and saved.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Printer scan/connect failed: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Future<void> _savePrinterSettings() async {
+    await _printerService.setPaperSize(_paperSize);
+    await _printerService.saveReceiptSettings(
+      shopName: _shopNameController.text.trim(),
+      addressPhone: _addressPhoneController.text.trim(),
+      footerMessage: _footerController.text.trim().isEmpty
+          ? 'Thank you!'
+          : _footerController.text.trim(),
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Printer settings saved.')));
+    }
   }
 
   Future<List<FailedSaleRecord>> _loadFailedSales() {
@@ -79,6 +167,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             children: [
+              _buildPrinterSection(),
+              const SizedBox(height: 24),
               Text(
                 'Needs Review',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -104,6 +194,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPrinterSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Printer',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(_printerConnected ? 'Connected' : 'Not connected'),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: _scanning ? null : _scanPrinters,
+              icon: const Icon(Icons.bluetooth_searching),
+              label: Text(
+                _scanning ? 'Scanning...' : 'Scan Bluetooth Printers',
+              ),
+            ),
+            TextField(
+              controller: _shopNameController,
+              decoration: const InputDecoration(labelText: 'Shop name'),
+            ),
+            TextField(
+              controller: _addressPhoneController,
+              decoration: const InputDecoration(labelText: 'Address / phone'),
+            ),
+            TextField(
+              controller: _footerController,
+              decoration: const InputDecoration(labelText: 'Footer message'),
+            ),
+            DropdownButton<PaperSize>(
+              value: _paperSize,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(
+                  value: PaperSize.mm58,
+                  child: Text('Paper width: 58mm'),
+                ),
+                DropdownMenuItem(
+                  value: PaperSize.mm80,
+                  child: Text('Paper width: 80mm'),
+                ),
+              ],
+              onChanged: (value) =>
+                  setState(() => _paperSize = value ?? PaperSize.mm58),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _savePrinterSettings,
+                icon: const Icon(Icons.save),
+                label: const Text('Save printer settings'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
