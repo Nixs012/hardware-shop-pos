@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Brand Colors
@@ -22,7 +21,8 @@ class AppTheme {
         foregroundColor: secondaryColor,
         elevation: 0,
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+      fontFamily: 'Inter',
+      textTheme: ThemeData.dark().textTheme.apply(fontFamily: 'Inter'),
     );
   }
 }

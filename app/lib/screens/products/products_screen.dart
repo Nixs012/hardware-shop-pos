@@ -97,13 +97,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         Row(
                           children: [
                             Text(
-                              'Price: \$${product.sellingPrice.toStringAsFixed(2)}',
+                              'Price: KSh ${product.sellingPrice.toStringAsFixed(2)}',
                               style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
                             ),
                             if (_isAdmin) ...[
                               const SizedBox(width: 16),
                               Text(
-                                'Cost: \$${product.costPrice.toStringAsFixed(2)}',
+                                'Cost: KSh ${product.costPrice.toStringAsFixed(2)}',
                                 style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                               ),
                             ]

@@ -125,7 +125,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               const SizedBox(height: 20),
               _buildMetricCard(
                 title: 'Total Revenue',
-                value: '\$${totalRevenue.toStringAsFixed(2)}',
+                value: 'KSh ${totalRevenue.toStringAsFixed(2)}',
                 icon: Icons.attach_money,
                 color: AppTheme.primaryColor,
               ),
@@ -133,7 +133,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 const SizedBox(height: 12),
                 _buildMetricCard(
                   title: 'Total Profit',
-                  value: '\$${totalProfit.toStringAsFixed(2)}',
+                  value: 'KSh ${totalProfit.toStringAsFixed(2)}',
                   icon: Icons.trending_up,
                   color: Colors.green,
                 ),
@@ -207,13 +207,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      _buildPLRow('Gross Revenue', '\$${revenue.toStringAsFixed(2)}', Colors.white),
+                      _buildPLRow('Gross Revenue', 'KSh ${revenue.toStringAsFixed(2)}', Colors.white),
                       const Divider(color: Colors.white24, height: 24),
-                      _buildPLRow('Cost of Goods Sold (COGS)', '-\$${costOfGoodsSold.toStringAsFixed(2)}', Colors.redAccent),
+                      _buildPLRow('Cost of Goods Sold (COGS)', '-KSh ${costOfGoodsSold.toStringAsFixed(2)}', Colors.redAccent),
                       const Divider(color: Colors.white24, height: 24),
                       _buildPLRow(
                         'Net Profit', 
-                        '\$${netProfit.toStringAsFixed(2)}', 
+                        'KSh ${netProfit.toStringAsFixed(2)}', 
                         netProfit >= 0 ? Colors.green : Colors.red,
                         isBold: true,
                         fontSize: 20,
@@ -362,7 +362,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(method, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-          Text('\$${amount.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+          Text('KSh ${amount.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
         ],
       ),
     );

@@ -110,75 +110,97 @@ class _BillingScreenState extends State<BillingScreen> {
   }
   
   void _checkout() async {
-    if (_cart.isEmpty) return;
-
-    final paymentMethod = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.backgroundColor,
-        title: const Text('Select Payment Method', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _paymentButton(ctx, 'Cash'),
-            const SizedBox(height: 8),
-            _paymentButton(ctx, 'M-Pesa'),
-            const SizedBox(height: 8),
-            _paymentButton(ctx, 'Card'),
-            const SizedBox(height: 8),
-            _paymentButton(ctx, 'Credit'),
-          ],
-        ),
-      ),
-    );
-
-    if (paymentMethod == null) return;
-    
-    // Evaluate if any products are oversold before clearing cart
-    bool hasOversold = false;
-    for (final item in _cart.values) {
-      try {
-        final product = _allProducts.firstWhere((p) => p.id == item.productId);
-        if (product.quantityOnHand - item.quantity < 0) {
-          hasOversold = true;
-        }
-      } catch (e) {
-        // Product not found in local cache, ignore oversold check
-      }
-    }
-
-    final sale = Sale(
-      id: const Uuid().v4(),
-      timestamp: DateTime.now(),
-      staffId: widget.currentStaff.id,
-      paymentMethod: paymentMethod,
-      lineItems: _cart.values.toList(),
-    );
-
     try {
-      await _firestoreService.processSale(sale);
-      
-      if (mounted) {
-        setState(() {
-          _cart.clear();
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-            content: Text(
-              hasOversold 
-                ? 'Sale Complete! Warning: Some items were oversold.' 
-                : 'Sale Complete!',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            backgroundColor: hasOversold ? Colors.orange : Colors.green,
-            duration: const Duration(seconds: 4),
-          )
-        );
+      debugPrint('[Billing] _checkout() entered. Cart items: ${_cart.length}');
+      if (_cart.isEmpty) {
+        debugPrint('[Billing] _checkout() exited: cart is empty.');
+        return;
       }
-    } catch (e) {
+
+      debugPrint('[Billing] Showing payment method dialog.');
+      final paymentMethod = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.backgroundColor,
+          title: const Text('Select Payment Method', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _paymentButton(ctx, 'Cash'),
+              const SizedBox(height: 8),
+              _paymentButton(ctx, 'M-Pesa'),
+              const SizedBox(height: 8),
+              _paymentButton(ctx, 'Card'),
+              const SizedBox(height: 8),
+              _paymentButton(ctx, 'Credit'),
+            ],
+          ),
+        ),
+      );
+
+      debugPrint('[Billing] Payment dialog returned: $paymentMethod');
+      if (paymentMethod == null) {
+        debugPrint('[Billing] _checkout() exited: no payment method selected.');
+        return;
+      }
+
+      bool hasOversold = false;
+      for (final item in _cart.values) {
+        try {
+          final product = _allProducts.firstWhere((p) => p.id == item.productId);
+          if (product.quantityOnHand - item.quantity < 0) {
+            hasOversold = true;
+          }
+        } catch (e, stackTrace) {
+          debugPrint('[Billing] Oversold check failed for ${item.productId}: $e');
+          debugPrint('[Billing] Oversold check stack trace: $stackTrace');
+        }
+      }
+
+      final sale = Sale(
+        id: const Uuid().v4(),
+        timestamp: DateTime.now(),
+        staffId: widget.currentStaff.id,
+        paymentMethod: paymentMethod,
+        lineItems: _cart.values.toList(),
+      );
+
+      debugPrint('[Billing] About to call processSale(). Sale ID: ${sale.id}');
+      await _firestoreService.processSale(sale);
+      debugPrint('[Billing] processSale() returned successfully. Sale ID: ${sale.id}');
+
+      debugPrint('[Billing] No printer/receipt call exists in this checkout flow.');
+
+      if (!mounted) {
+        debugPrint('[Billing] Widget unmounted after processSale(); cannot show success message.');
+        return;
+      }
+
+      debugPrint('[Billing] Clearing cart after successful local commit.');
+      setState(() {
+        _cart.clear();
+      });
+
+      debugPrint('[Billing] About to show success SnackBar.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            hasOversold
+                ? 'Sale Complete! Warning: Some items were oversold.'
+                : 'Sale Successful',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: hasOversold ? Colors.orange : Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      debugPrint('[Billing] Success SnackBar shown.');
+    } catch (e, stackTrace) {
+      debugPrint('[Billing] _checkout() caught exception: $e');
+      debugPrint('[Billing] _checkout() full stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -339,7 +361,7 @@ class _BillingScreenState extends State<BillingScreen> {
                           ),
                           const Spacer(),
                           Text(
-                            '\$${product.sellingPrice.toStringAsFixed(2)}',
+                            'KSh ${product.sellingPrice.toStringAsFixed(2)}',
                             style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           const SizedBox(height: 4),
@@ -423,7 +445,7 @@ class _BillingScreenState extends State<BillingScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            Text('\$${item.unitPriceAtSale.toStringAsFixed(2)} each', style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 12)),
+                            Text('KSh ${item.unitPriceAtSale.toStringAsFixed(2)} each', style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 12)),
                           ],
                         ),
                       ),
@@ -450,7 +472,7 @@ class _BillingScreenState extends State<BillingScreen> {
                       SizedBox(
                         width: 70,
                         child: Text(
-                          '\$${(item.unitPriceAtSale * item.quantity).toStringAsFixed(2)}',
+                          'KSh ${(item.unitPriceAtSale * item.quantity).toStringAsFixed(2)}',
                           textAlign: TextAlign.right,
                           style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
                         ),
@@ -469,7 +491,7 @@ class _BillingScreenState extends State<BillingScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Total', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text('\$${_cartTotal.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text('KSh ${_cartTotal.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 16),

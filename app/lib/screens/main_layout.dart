@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'billing/billing_screen.dart';
 import 'products/products_screen.dart';
 import 'reports/reports_screen.dart';
@@ -27,7 +28,7 @@ class _MainLayoutState extends State<MainLayout> {
       BillingScreen(currentStaff: widget.currentStaff),
       ProductsScreen(currentStaff: widget.currentStaff),
       ReportsScreen(currentStaff: widget.currentStaff),
-      const SettingsScreen(),
+      SettingsScreen(currentStaff: widget.currentStaff),
     ];
   }
 
@@ -44,10 +45,7 @@ class _MainLayoutState extends State<MainLayout> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: Image.asset(
-              'assets/images/logo.png',
-              height: 32,
-            ),
+            child: Image.asset('assets/images/logo.png', height: 32),
           ),
         ],
       ),
