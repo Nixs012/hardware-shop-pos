@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../models/product.dart';
 import '../../models/sale.dart';
 import '../../models/sale_line_item.dart';
@@ -19,13 +20,13 @@ class BillingScreen extends StatefulWidget {
 class _BillingScreenState extends State<BillingScreen> {
   final _firestoreService = FirestoreService();
   final _searchController = TextEditingController();
-  
+
   String _searchQuery = '';
   List<Product> _allProducts = [];
-  
+
   // Cart state: keyed by product ID
   final Map<String, SaleLineItem> _cart = {};
-  
+
   @override
   void initState() {
     super.initState();
@@ -43,26 +44,43 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   double get _cartTotal {
-    return _cart.values.fold(0, (sum, item) => sum + (item.unitPriceAtSale * item.quantity));
+    return _cart.values.fold(
+      0,
+      (sum, item) => sum + (item.unitPriceAtSale * item.quantity),
+    );
   }
-  
+
   void _addToCart(Product product) async {
     if (product.quantityOnHand <= 0) {
       final override = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppTheme.backgroundColor,
-          title: const Text('Out of Stock', style: TextStyle(color: Colors.white)),
-          content: Text('${product.name} is out of stock. Add anyway?', style: const TextStyle(color: Colors.white70)),
+          title: const Text(
+            'Out of Stock',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            '${product.name} is out of stock. Add anyway?',
+            style: const TextStyle(color: Colors.white70),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel', style: TextStyle(color: AppTheme.secondaryColor)),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppTheme.secondaryColor),
+              ),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+              ),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Override', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Override',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -95,7 +113,7 @@ class _BillingScreenState extends State<BillingScreen> {
       if (!_cart.containsKey(productId)) return;
       final existing = _cart[productId]!;
       final newQuantity = existing.quantity + delta;
-      
+
       if (newQuantity <= 0) {
         _cart.remove(productId);
       } else {
@@ -108,21 +126,21 @@ class _BillingScreenState extends State<BillingScreen> {
       }
     });
   }
-  
+
   void _checkout() async {
     try {
-      debugPrint('[Billing] _checkout() entered. Cart items: ${_cart.length}');
       if (_cart.isEmpty) {
-        debugPrint('[Billing] _checkout() exited: cart is empty.');
         return;
       }
 
-      debugPrint('[Billing] Showing payment method dialog.');
       final paymentMethod = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppTheme.backgroundColor,
-          title: const Text('Select Payment Method', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'Select Payment Method',
+            style: TextStyle(color: Colors.white),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -138,23 +156,20 @@ class _BillingScreenState extends State<BillingScreen> {
         ),
       );
 
-      debugPrint('[Billing] Payment dialog returned: $paymentMethod');
       if (paymentMethod == null) {
-        debugPrint('[Billing] _checkout() exited: no payment method selected.');
         return;
       }
 
       bool hasOversold = false;
       for (final item in _cart.values) {
         try {
-          final product = _allProducts.firstWhere((p) => p.id == item.productId);
+          final product = _allProducts.firstWhere(
+            (p) => p.id == item.productId,
+          );
           if (product.quantityOnHand - item.quantity < 0) {
             hasOversold = true;
           }
-        } catch (e, stackTrace) {
-          debugPrint('[Billing] Oversold check failed for ${item.productId}: $e');
-          debugPrint('[Billing] Oversold check stack trace: $stackTrace');
-        }
+        } catch (_) {}
       }
 
       final sale = Sale(
@@ -165,39 +180,32 @@ class _BillingScreenState extends State<BillingScreen> {
         lineItems: _cart.values.toList(),
       );
 
-      debugPrint('[Billing] About to call processSale(). Sale ID: ${sale.id}');
       await _firestoreService.processSale(sale);
-      debugPrint('[Billing] processSale() returned successfully. Sale ID: ${sale.id}');
-
-      debugPrint('[Billing] No printer/receipt call exists in this checkout flow.');
 
       if (!mounted) {
-        debugPrint('[Billing] Widget unmounted after processSale(); cannot show success message.');
         return;
       }
 
-      debugPrint('[Billing] Clearing cart after successful local commit.');
       setState(() {
         _cart.clear();
       });
 
-      debugPrint('[Billing] About to show success SnackBar.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             hasOversold
                 ? 'Sale Complete! Warning: Some items were oversold.'
                 : 'Sale Successful',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           backgroundColor: hasOversold ? Colors.orange : Colors.green,
           duration: const Duration(seconds: 4),
         ),
       );
-      debugPrint('[Billing] Success SnackBar shown.');
-    } catch (e, stackTrace) {
-      debugPrint('[Billing] _checkout() caught exception: $e');
-      debugPrint('[Billing] _checkout() full stack trace: $stackTrace');
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -214,7 +222,9 @@ class _BillingScreenState extends State<BillingScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.secondaryColor.withValues(alpha: 0.1),
           foregroundColor: Colors.white,
-          side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.3)),
+          side: BorderSide(
+            color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+          ),
         ),
         onPressed: () => Navigator.pop(context, method),
         child: Text(method, style: const TextStyle(fontSize: 16)),
@@ -227,7 +237,7 @@ class _BillingScreenState extends State<BillingScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 800;
-        
+
         final catalogWidget = _buildCatalog();
         final cartWidget = _buildCart();
 
@@ -235,7 +245,10 @@ class _BillingScreenState extends State<BillingScreen> {
           return Row(
             children: [
               Expanded(flex: 5, child: catalogWidget),
-              Container(width: 1, color: AppTheme.secondaryColor.withValues(alpha: 0.3)),
+              Container(
+                width: 1,
+                color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+              ),
               Expanded(flex: 3, child: cartWidget),
             ],
           );
@@ -252,13 +265,19 @@ class _BillingScreenState extends State<BillingScreen> {
                       color: AppTheme.backgroundColor,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.5), 
-                          blurRadius: 10, 
-                          offset: const Offset(0, -5)
-                        )
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 10,
+                          offset: const Offset(0, -5),
+                        ),
                       ],
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      border: Border(top: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.3))),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                      border: Border(
+                        top: BorderSide(
+                          color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+                        ),
+                      ),
                     ),
                     child: cartWidget,
                   ),
@@ -281,7 +300,10 @@ class _BillingScreenState extends State<BillingScreen> {
             decoration: InputDecoration(
               hintText: 'Search products...',
               hintStyle: const TextStyle(color: AppTheme.secondaryColor),
-              prefixIcon: const Icon(Icons.search, color: AppTheme.secondaryColor),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppTheme.secondaryColor,
+              ),
               filled: true,
               fillColor: Colors.white.withValues(alpha: 0.05),
               border: OutlineInputBorder(
@@ -299,26 +321,39 @@ class _BillingScreenState extends State<BillingScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return const Center(child: Text('Error loading products', style: TextStyle(color: Colors.red)));
+                return const Center(
+                  child: Text(
+                    'Error loading products',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                );
               }
 
               _allProducts = snapshot.data ?? [];
-              
+
               final filtered = _allProducts.where((p) {
                 if (_searchQuery.isEmpty) return true;
-                return p.name.toLowerCase().contains(_searchQuery) || p.sku.toLowerCase().contains(_searchQuery);
+                return p.name.toLowerCase().contains(_searchQuery) ||
+                    p.sku.toLowerCase().contains(_searchQuery);
               }).toList();
 
               if (filtered.isEmpty) {
                 return const Center(
-                  child: Text('No products found.', style: TextStyle(color: AppTheme.secondaryColor)),
+                  child: Text(
+                    'No products found.',
+                    style: TextStyle(color: AppTheme.secondaryColor),
+                  ),
                 );
               }
 
               return GridView.builder(
                 padding: EdgeInsets.only(
-                  left: 16.0, right: 16.0, top: 0, 
-                  bottom: _cart.isNotEmpty ? 400 : 16.0, // extra padding on mobile if cart is visible
+                  left: 16.0,
+                  right: 16.0,
+                  top: 0,
+                  bottom: _cart.isNotEmpty
+                      ? 400
+                      : 16.0, // extra padding on mobile if cart is visible
                 ),
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 200,
@@ -329,7 +364,8 @@ class _BillingScreenState extends State<BillingScreen> {
                 itemCount: filtered.length,
                 itemBuilder: (context, index) {
                   final product = filtered[index];
-                  final isLowStock = product.quantityOnHand <= product.lowStockThreshold;
+                  final isLowStock =
+                      product.quantityOnHand <= product.lowStockThreshold;
                   final outOfStock = product.quantityOnHand <= 0;
 
                   return InkWell(
@@ -338,16 +374,16 @@ class _BillingScreenState extends State<BillingScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: outOfStock 
-                            ? Colors.red.withValues(alpha: 0.1) 
+                        color: outOfStock
+                            ? Colors.red.withValues(alpha: 0.1)
                             : Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: outOfStock 
+                          color: outOfStock
                               ? Colors.red.withValues(alpha: 0.3)
-                              : isLowStock 
-                                  ? Colors.orange.withValues(alpha: 0.5) 
-                                  : AppTheme.secondaryColor.withValues(alpha: 0.2),
+                              : isLowStock
+                              ? Colors.orange.withValues(alpha: 0.5)
+                              : AppTheme.secondaryColor.withValues(alpha: 0.2),
                         ),
                       ),
                       child: Column(
@@ -355,28 +391,37 @@ class _BillingScreenState extends State<BillingScreen> {
                         children: [
                           Text(
                             product.name,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const Spacer(),
                           Text(
                             'KSh ${product.sellingPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 16),
+                            style: const TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Stock: ${product.quantityOnHand} ${product.unit}',
                             style: TextStyle(
-                              color: outOfStock 
-                                  ? Colors.red 
-                                  : isLowStock 
-                                      ? Colors.orange 
-                                      : AppTheme.secondaryColor, 
+                              color: outOfStock
+                                  ? Colors.red
+                                  : isLowStock
+                                  ? Colors.orange
+                                  : AppTheme.secondaryColor,
                               fontSize: 12,
-                              fontWeight: outOfStock ? FontWeight.bold : FontWeight.normal
+                              fontWeight: outOfStock
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
-                          )
+                          ),
                         ],
                       ),
                     ),
@@ -403,84 +448,124 @@ class _BillingScreenState extends State<BillingScreen> {
             children: [
               const Icon(Icons.shopping_cart, color: Colors.white),
               const SizedBox(width: 8),
-              const Text('Current Sale', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text(
+                'Current Sale',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const Spacer(),
               if (_cart.isNotEmpty)
                 IconButton(
                   icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
                   onPressed: () => setState(() => _cart.clear()),
                   tooltip: 'Clear Cart',
-                )
+                ),
             ],
           ),
         ),
         const Divider(height: 1, color: Colors.white12),
         Expanded(
           child: _cart.isEmpty
-            ? const Center(child: Text('Cart is empty', style: TextStyle(color: AppTheme.secondaryColor)))
-            : ListView.separated(
-                padding: const EdgeInsets.all(8),
-                itemCount: _cart.length,
-                separatorBuilder: (context, index) => const Divider(color: Colors.white12),
-                itemBuilder: (context, index) {
-                  final key = _cart.keys.elementAt(index);
-                  final item = _cart[key]!;
-                  final product = _allProducts.firstWhere(
-                    (p) => p.id == item.productId, 
-                    orElse: () => Product(
-                      id: '', name: 'Unknown', sku: '', category: '', 
-                      costPrice: 0, sellingPrice: item.unitPriceAtSale, quantityOnHand: 0, unit: ''
-                    )
-                  );
+              ? const Center(
+                  child: Text(
+                    'Cart is empty',
+                    style: TextStyle(color: AppTheme.secondaryColor),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: _cart.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(color: Colors.white12),
+                  itemBuilder: (context, index) {
+                    final key = _cart.keys.elementAt(index);
+                    final item = _cart[key]!;
+                    final product = _allProducts.firstWhere(
+                      (p) => p.id == item.productId,
+                      orElse: () => Product(
+                        id: '',
+                        name: 'Unknown',
+                        sku: '',
+                        category: '',
+                        costPrice: 0,
+                        sellingPrice: item.unitPriceAtSale,
+                        quantityOnHand: 0,
+                        unit: '',
+                      ),
+                    );
 
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                'KSh ${item.unitPriceAtSale.toStringAsFixed(2)} each',
+                                style: const TextStyle(
+                                  color: AppTheme.secondaryColor,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
                           children: [
-                            Text(
-                              product.name, 
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: AppTheme.secondaryColor,
+                              ),
+                              onPressed: () => _updateQuantity(key, -1),
                             ),
-                            Text('KSh ${item.unitPriceAtSale.toStringAsFixed(2)} each', style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 12)),
+                            SizedBox(
+                              width: 30,
+                              child: Text(
+                                '${item.quantity}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.add_circle_outline,
+                                color: AppTheme.secondaryColor,
+                              ),
+                              onPressed: () => _updateQuantity(key, 1),
+                            ),
                           ],
                         ),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, color: AppTheme.secondaryColor),
-                            onPressed: () => _updateQuantity(key, -1),
-                          ),
-                          SizedBox(
-                            width: 30,
-                            child: Text(
-                              '${item.quantity}', 
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
+                        SizedBox(
+                          width: 70,
+                          child: Text(
+                            'KSh ${(item.unitPriceAtSale * item.quantity).toStringAsFixed(2)}',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline, color: AppTheme.secondaryColor),
-                            onPressed: () => _updateQuantity(key, 1),
-                          ),
-                        ],
-                      ),
-                      SizedBox(
-                        width: 70,
-                        child: Text(
-                          'KSh ${(item.unitPriceAtSale * item.quantity).toStringAsFixed(2)}',
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
                         ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                      ],
+                    );
+                  },
+                ),
         ),
         Container(
           padding: const EdgeInsets.all(16),
@@ -490,8 +575,22 @@ class _BillingScreenState extends State<BillingScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text('KSh ${_cartTotal.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.primaryColor, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Total',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'KSh ${_cartTotal.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -502,10 +601,15 @@ class _BillingScreenState extends State<BillingScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: _cart.isEmpty ? null : _checkout,
-                  child: const Text('Complete Sale', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Complete Sale',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],

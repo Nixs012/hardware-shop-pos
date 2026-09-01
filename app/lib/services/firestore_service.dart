@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:async';
@@ -44,20 +43,11 @@ class FirestoreService {
       });
     }
 
-    debugPrint('[Firestore] Queueing sale batch for local commit: ${sale.id}');
     unawaited(
-      batch
-          .commit()
-          .then((_) {
-            debugPrint('[Firestore] Sale batch commit completed: ${sale.id}');
-          })
-          .catchError((Object error, StackTrace stackTrace) {
-            debugPrint('[Firestore] Sale batch sync failed: $error');
-            debugPrint('[Firestore] Sale batch sync stack trace: $stackTrace');
-            unawaited(_saveFailedSale(sale, error.toString()));
-          }),
+      batch.commit().catchError((Object error) {
+        unawaited(_saveFailedSale(sale, error.toString()));
+      }),
     );
-    debugPrint('[Firestore] Sale batch queued locally: ${sale.id}');
   }
 
   Future<List<FailedSaleRecord>> getFailedSales() async {
@@ -73,18 +63,11 @@ class FirestoreService {
           records.add(
             FailedSaleRecord.fromMap(Map<String, dynamic>.from(value as Map)),
           );
-        } catch (error, stackTrace) {
-          debugPrint(
-            '[Firestore] Ignoring corrupted failed-sale record: $error',
-          );
-          debugPrint('[Firestore] Corrupted record stack trace: $stackTrace');
-        }
+        } catch (_) {}
       }
       records.sort((a, b) => b.failedAt.compareTo(a.failedAt));
       return records;
-    } catch (error, stackTrace) {
-      debugPrint('[Firestore] Failed-sale storage is corrupted: $error');
-      debugPrint('[Firestore] Failed-sale storage stack trace: $stackTrace');
+    } catch (_) {
       return [];
     }
   }
@@ -101,11 +84,8 @@ class FirestoreService {
     try {
       await batch.commit().timeout(const Duration(seconds: 10));
       await _removeFailedSale(record.sale.id);
-      debugPrint('[Firestore] Failed sale retry succeeded: ${record.sale.id}');
-    } catch (error, stackTrace) {
+    } catch (error) {
       await _saveFailedSale(record.sale, error.toString());
-      debugPrint('[Firestore] Failed sale retry failed: $error');
-      debugPrint('[Firestore] Failed sale retry stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -120,15 +100,7 @@ class FirestoreService {
         failedAt: DateTime.now(),
       ).toMap();
       await preferences.setString(_failedSalesKey, jsonEncode(stored));
-      debugPrint('[Firestore] Failed sale saved for Needs Review: ${sale.id}');
-    } catch (error, stackTrace) {
-      debugPrint(
-        '[Firestore] Could not persist failed sale ${sale.id}: $error',
-      );
-      debugPrint(
-        '[Firestore] Failed-sale persistence stack trace: $stackTrace',
-      );
-    }
+    } catch (_) {}
   }
 
   Future<void> _removeFailedSale(String saleId) async {
@@ -143,9 +115,7 @@ class FirestoreService {
     if (encoded == null || encoded.isEmpty) return {};
     try {
       return Map<String, dynamic>.from(jsonDecode(encoded) as Map);
-    } catch (error, stackTrace) {
-      debugPrint('[Firestore] Resetting corrupted failed-sale map: $error');
-      debugPrint('[Firestore] Failed-sale map stack trace: $stackTrace');
+    } catch (_) {
       return {};
     }
   }
