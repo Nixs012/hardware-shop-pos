@@ -1,6 +1,6 @@
 class PrinterService {
   // ESC/POS connection + print logic (see escpos-printing skill)
-  // Use esc_pos_bluetooth and esc_pos_utils
+  // Use the unified thermal printer package for receipt output
   
   Future<void> connectToPrinter(String macAddress) async {
     // Pairing flow: scan -> select -> persist MAC -> connect
