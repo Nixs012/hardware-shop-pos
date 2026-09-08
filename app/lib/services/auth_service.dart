@@ -74,18 +74,23 @@ class AuthService {
   }
 
   Future<void> createStaffAccount(
-      String email, String password, Staff staffInfo) async {
+    String email,
+    String password,
+    Staff staffInfo,
+  ) async {
     // Use a secondary app instance to create the user without signing out the current admin
     FirebaseApp secondaryApp = await Firebase.initializeApp(
       name: 'SecondaryApp',
       options: Firebase.app().options,
     );
+    auth.User? createdUser;
     try {
-      final credential = await auth.FirebaseAuth.instanceFor(app: secondaryApp)
-          .createUserWithEmailAndPassword(
-              email: email.trim(), password: password);
+      final credential = await auth.FirebaseAuth.instanceFor(
+        app: secondaryApp,
+      ).createUserWithEmailAndPassword(email: email.trim(), password: password);
 
-      final uid = credential.user!.uid;
+      createdUser = credential.user;
+      final uid = createdUser!.uid;
       final newStaff = Staff(
         id: uid,
         name: staffInfo.name,
@@ -95,7 +100,12 @@ class AuthService {
         authUid: uid,
       );
 
-      await _firestore.collection('staff').doc(uid).set(newStaff.toMap());
+      try {
+        await _firestore.collection('staff').doc(uid).set(newStaff.toMap());
+      } catch (_) {
+        await createdUser.delete();
+        rethrow;
+      }
     } finally {
       await secondaryApp.delete();
     }
