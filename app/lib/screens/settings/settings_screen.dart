@@ -3,6 +3,7 @@ import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 
 import '../../models/failed_sale.dart';
 import '../../models/staff.dart';
+import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
 import '../../utils/theme.dart';
@@ -149,10 +150,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isAdmin) {
-      return const Center(child: Text('Settings Screen'));
-    }
-
     return RefreshIndicator(
       onRefresh: () async => _refreshFailedSales(),
       child: FutureBuilder<List<FailedSaleRecord>>(
@@ -167,30 +164,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             children: [
-              _buildPrinterSection(),
-              const SizedBox(height: 24),
-              Text(
-                'Needs Review',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+              if (_isAdmin) ...[
+                _buildPrinterSection(),
+                const SizedBox(height: 24),
+                Text(
+                  'Needs Review',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sales that failed to sync are stored on this device until an Admin retries them.',
+                  style: TextStyle(
+                    color: AppTheme.secondaryColor.withValues(alpha: 0.8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (failedSales.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: Text('No failed sales need review.')),
+                  )
+                else
+                  ...failedSales.map(_buildFailedSale),
+                const Divider(height: 48, color: Colors.white24),
+              ],
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  onPressed: () async {
+                    await AuthService().logout();
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Log Out',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Sales that failed to sync are stored on this device until an Admin retries them.',
-                style: TextStyle(
-                  color: AppTheme.secondaryColor.withValues(alpha: 0.8),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (failedSales.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: Text('No failed sales need review.')),
-                )
-              else
-                ...failedSales.map(_buildFailedSale),
             ],
           );
         },
