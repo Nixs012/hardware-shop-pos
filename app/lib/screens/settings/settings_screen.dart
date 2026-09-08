@@ -399,7 +399,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: selectedRole,
+                      initialValue: selectedRole,
                       decoration: const InputDecoration(labelText: 'Role'),
                       items: const [
                         DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
@@ -444,22 +444,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 email: emailController.text.trim(),
                               ),
                             );
-                            if (mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Staff member created.'),
-                                ),
-                              );
-                            }
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Staff member created.'),
+                              ),
+                            );
                           } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
                           } finally {
-                            if (mounted) setDialogState(() => isLoading = false);
+                            if (context.mounted) setDialogState(() => isLoading = false);
                           }
                         },
                   child: isLoading
@@ -507,7 +505,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: selectedRole,
+                      initialValue: selectedRole,
                       decoration: const InputDecoration(labelText: 'Role'),
                       items: const [
                         DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
@@ -550,22 +548,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               authUid: staff.authUid,
                             );
                             await _firestoreService.updateStaff(updatedStaff);
-                            if (mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Staff member updated.'),
-                                ),
-                              );
-                            }
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Staff member updated.'),
+                              ),
+                            );
                           } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
                           } finally {
-                            if (mounted) setDialogState(() => isLoading = false);
+                            if (context.mounted) setDialogState(() => isLoading = false);
                           }
                         },
                   child: isLoading
