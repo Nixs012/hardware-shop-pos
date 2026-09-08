@@ -229,12 +229,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Staff Management',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                const Expanded(
+                  child: Text(
+                    'Staff Management',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                 ),
+                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: _showAddStaffDialog,
                   icon: const Icon(Icons.person_add),
@@ -275,7 +279,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const Chip(
                               label: Text(
                                 'Deactivated',
-                                style: TextStyle(color: Colors.white, fontSize: 10),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
                               ),
                               backgroundColor: Colors.red,
                               padding: EdgeInsets.zero,
@@ -394,7 +401,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: passwordController,
-                      decoration: const InputDecoration(labelText: 'Temporary Password'),
+                      decoration: const InputDecoration(
+                        labelText: 'Temporary Password',
+                      ),
                       obscureText: true,
                     ),
                     const SizedBox(height: 16),
@@ -402,11 +411,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       initialValue: selectedRole,
                       decoration: const InputDecoration(labelText: 'Role'),
                       items: const [
-                        DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
+                        DropdownMenuItem(
+                          value: 'cashier',
+                          child: Text('Cashier'),
+                        ),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedRole = val);
+                        if (val != null) {
+                          setDialogState(() => selectedRole = val);
+                        }
                       },
                     ),
                   ],
@@ -457,7 +471,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               SnackBar(content: Text('Error: $e')),
                             );
                           } finally {
-                            if (context.mounted) setDialogState(() => isLoading = false);
+                            if (context.mounted) {
+                              setDialogState(() => isLoading = false);
+                            }
                           }
                         },
                   child: isLoading
@@ -508,11 +524,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       initialValue: selectedRole,
                       decoration: const InputDecoration(labelText: 'Role'),
                       items: const [
-                        DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
+                        DropdownMenuItem(
+                          value: 'cashier',
+                          child: Text('Cashier'),
+                        ),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedRole = val);
+                        if (val != null) {
+                          setDialogState(() => selectedRole = val);
+                        }
                       },
                     ),
                   ],
@@ -561,7 +582,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               SnackBar(content: Text('Error: $e')),
                             );
                           } finally {
-                            if (context.mounted) setDialogState(() => isLoading = false);
+                            if (context.mounted) {
+                              setDialogState(() => isLoading = false);
+                            }
                           }
                         },
                   child: isLoading
