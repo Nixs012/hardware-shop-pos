@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+
 import '../models/staff.dart';
 
 class AuthService {
@@ -8,48 +9,37 @@ class AuthService {
 
   Future<Staff?> restoreCurrentStaff() async {
     final user = _auth.currentUser;
-    final email = user?.email?.trim();
-    if (user == null || email == null || email.isEmpty) {
+    if (user == null) {
       return null;
     }
 
-    return await _fetchStaffByEmail(email);
+    return await _fetchStaffByUid(user.uid);
   }
 
-  Future<Staff?> _fetchStaffByEmail(String rawEmail) async {
-    final candidates = <String>{rawEmail.trim(), rawEmail.trim().toLowerCase()};
+  Future<Staff?> _fetchStaffByUid(String uid) async {
+    final staffDocument = _firestore.collection('staff').doc(uid);
 
-    for (final email in candidates) {
-      try {
-        final cacheSnapshot = await _firestore
-            .collection('staff')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get(const GetOptions(source: Source.cache));
-
-        if (cacheSnapshot.docs.isNotEmpty) {
-          final doc = cacheSnapshot.docs.first;
-          return Staff.fromMap(doc.data(), doc.id);
-        }
-      } catch (_) {
-        // Ignore cache misses and continue to server fallback.
+    try {
+      final cacheSnapshot = await staffDocument.get(
+        const GetOptions(source: Source.cache),
+      );
+      if (cacheSnapshot.exists) {
+        return Staff.fromMap(cacheSnapshot.data()!, cacheSnapshot.id);
       }
+    } catch (_) {
+      // Ignore cache misses and continue to server fallback.
+    }
 
-      try {
-        final serverSnapshot = await _firestore
-            .collection('staff')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get(const GetOptions(source: Source.server));
-
-        if (serverSnapshot.docs.isNotEmpty) {
-          final doc = serverSnapshot.docs.first;
-          return Staff.fromMap(doc.data(), doc.id);
-        }
-      } catch (_) {
-        // If the network is unavailable, keep the flow alive and allow the persisted
-        // Firebase auth session to restore the app when the staff record is already cached.
+    try {
+      final serverSnapshot = await staffDocument.get(
+        const GetOptions(source: Source.server),
+      );
+      if (serverSnapshot.exists) {
+        return Staff.fromMap(serverSnapshot.data()!, serverSnapshot.id);
       }
+    } catch (_) {
+      // If the network is unavailable, keep the flow alive and allow the persisted
+      // Firebase auth session to restore the app when the staff record is cached.
     }
 
     return null;
@@ -67,7 +57,7 @@ class AuthService {
         return null;
       }
 
-      return await _fetchStaffByEmail(trimmedEmail);
+      return await _fetchStaffByUid(userCredential.user!.uid);
     } catch (e) {
       rethrow;
     }

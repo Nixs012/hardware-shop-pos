@@ -21,7 +21,7 @@ Use `unified_esc_pos_printer` for Flutter. It provides a single `PrinterManager`
 
 Structure every receipt in this order — treat this as the default template, adjustable by client for wording only:
 
-```
+```text
         [SHOP NAME]              <- bold, centered, large
      [Shop address / phone]      <- centered, normal
    ------------------------------
@@ -52,6 +52,7 @@ Structure every receipt in this order — treat this as the default template, ad
 ## 4. Error Handling (critical for a real shop counter)
 
 A cashier mid-sale cannot tolerate a silent print failure. Handle these explicitly:
+
 - **Printer not connected**: show a clear retry/reconnect prompt immediately, and still record the sale in the database regardless of print success — printing must never block the sale from being saved.
 - **Printer out of paper / offline mid-print**: catch the write failure, show an alert, and offer a "Reprint last receipt" button that pulls from the last completed sale record rather than requiring the cashier to reconstruct it.
 - **Bluetooth disconnected between sales**: attempt silent auto-reconnect using the persisted MAC address before falling back to prompting the user.
