@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
 
 import '../models/staff.dart';
@@ -57,7 +58,12 @@ class AuthService {
         return null;
       }
 
-      return await _fetchStaffByUid(userCredential.user!.uid);
+      final staff = await _fetchStaffByUid(userCredential.user!.uid);
+      if (staff != null && !staff.active) {
+        await _auth.signOut();
+        throw Exception('This account has been deactivated.');
+      }
+      return staff;
     } catch (e) {
       rethrow;
     }
@@ -65,5 +71,33 @@ class AuthService {
 
   Future<void> logout() async {
     await _auth.signOut();
+  }
+
+  Future<void> createStaffAccount(
+      String email, String password, Staff staffInfo) async {
+    // Use a secondary app instance to create the user without signing out the current admin
+    FirebaseApp secondaryApp = await Firebase.initializeApp(
+      name: 'SecondaryApp',
+      options: Firebase.app().options,
+    );
+    try {
+      final credential = await auth.FirebaseAuth.instanceFor(app: secondaryApp)
+          .createUserWithEmailAndPassword(
+              email: email.trim(), password: password);
+
+      final uid = credential.user!.uid;
+      final newStaff = Staff(
+        id: uid,
+        name: staffInfo.name,
+        role: staffInfo.role,
+        email: email.trim(),
+        active: true,
+        authUid: uid,
+      );
+
+      await _firestore.collection('staff').doc(uid).set(newStaff.toMap());
+    } finally {
+      await secondaryApp.delete();
+    }
   }
 }

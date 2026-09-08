@@ -3,6 +3,7 @@ class Staff {
   final String name;
   final String role; // admin/cashier
   final String email;
+  final bool active;
   final String? pin;
   final String? authUid;
 
@@ -11,6 +12,7 @@ class Staff {
     required this.name,
     required this.role,
     required this.email,
+    this.active = true,
     this.pin,
     this.authUid,
   });
@@ -21,6 +23,7 @@ class Staff {
       'name': name,
       'role': role,
       'email': email,
+      'active': active,
       'pin': pin,
       'auth_uid': authUid,
     };
@@ -32,6 +35,7 @@ class Staff {
       name: map['name'] ?? '',
       role: map['role'] ?? 'cashier',
       email: map['email'] ?? '',
+      active: map['active'] ?? true, // Default to true for existing docs
       pin: map['pin'],
       authUid: map['auth_uid'],
     );

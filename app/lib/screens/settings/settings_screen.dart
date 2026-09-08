@@ -165,6 +165,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               if (_isAdmin) ...[
+                _buildStaffSection(),
+                const SizedBox(height: 24),
                 _buildPrinterSection(),
                 const SizedBox(height: 24),
                 Text(
@@ -216,6 +218,369 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildStaffSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Staff Management',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddStaffDialog,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Add Staff'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            StreamBuilder<List<Staff>>(
+              stream: _firestoreService.getStaffStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final staffList = snapshot.data ?? [];
+                if (staffList.isEmpty) {
+                  return const Text('No staff members found.');
+                }
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: staffList.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(color: Colors.white24),
+                  itemBuilder: (context, index) {
+                    final staff = staffList[index];
+                    final isSelf = staff.id == widget.currentStaff.id;
+                    return ListTile(
+                      title: Text(staff.name),
+                      subtitle: Text(
+                        '${staff.email}\nRole: ${staff.role.toUpperCase()}',
+                      ),
+                      isThreeLine: true,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!staff.active)
+                            const Chip(
+                              label: Text(
+                                'Deactivated',
+                                style: TextStyle(color: Colors.white, fontSize: 10),
+                              ),
+                              backgroundColor: Colors.red,
+                              padding: EdgeInsets.zero,
+                            ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            onPressed: () => _showEditStaffDialog(staff),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              staff.active ? Icons.block : Icons.check_circle,
+                              color: isSelf
+                                  ? Colors.grey
+                                  : (staff.active ? Colors.red : Colors.green),
+                            ),
+                            onPressed: isSelf
+                                ? null
+                                : () => _toggleStaffStatus(staff),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleStaffStatus(Staff staff) async {
+    final newStatus = !staff.active;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(newStatus ? 'Reactivate Staff?' : 'Deactivate Staff?'),
+        content: Text(
+          newStatus
+              ? 'Are you sure you want to reactivate ${staff.name}?'
+              : 'Are you sure you want to deactivate ${staff.name}? They will no longer be able to log in.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: newStatus ? Colors.green : Colors.red,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(newStatus ? 'Reactivate' : 'Deactivate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final updatedStaff = Staff(
+        id: staff.id,
+        name: staff.name,
+        role: staff.role,
+        email: staff.email,
+        active: newStatus,
+        pin: staff.pin,
+        authUid: staff.authUid,
+      );
+      try {
+        await _firestoreService.updateStaff(updatedStaff);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Staff status updated successfully.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update status: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  void _showAddStaffDialog() {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    String selectedRole = 'cashier';
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Staff Member'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Name'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordController,
+                      decoration: const InputDecoration(labelText: 'Temporary Password'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedRole,
+                      decoration: const InputDecoration(labelText: 'Role'),
+                      items: const [
+                        DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
+                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedRole = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                if (!isLoading)
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          if (nameController.text.trim().isEmpty ||
+                              emailController.text.trim().isEmpty ||
+                              passwordController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please fill all fields.'),
+                              ),
+                            );
+                            return;
+                          }
+                          setDialogState(() => isLoading = true);
+                          try {
+                            await AuthService().createStaffAccount(
+                              emailController.text,
+                              passwordController.text,
+                              Staff(
+                                id: '',
+                                name: nameController.text.trim(),
+                                role: selectedRole,
+                                email: emailController.text.trim(),
+                              ),
+                            );
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Staff member created.'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          } finally {
+                            if (mounted) setDialogState(() => isLoading = false);
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Create'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showEditStaffDialog(Staff staff) {
+    final nameController = TextEditingController(text: staff.name);
+    String selectedRole = staff.role;
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Staff Member'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Name'),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: TextEditingController(text: staff.email),
+                      decoration: const InputDecoration(labelText: 'Email'),
+                      enabled: false,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedRole,
+                      decoration: const InputDecoration(labelText: 'Role'),
+                      items: const [
+                        DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
+                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedRole = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                if (!isLoading)
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          if (nameController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please enter a name.'),
+                              ),
+                            );
+                            return;
+                          }
+                          setDialogState(() => isLoading = true);
+                          try {
+                            final updatedStaff = Staff(
+                              id: staff.id,
+                              name: nameController.text.trim(),
+                              role: selectedRole,
+                              email: staff.email,
+                              active: staff.active,
+                              pin: staff.pin,
+                              authUid: staff.authUid,
+                            );
+                            await _firestoreService.updateStaff(updatedStaff);
+                            if (mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Staff member updated.'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          } finally {
+                            if (mounted) setDialogState(() => isLoading = false);
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

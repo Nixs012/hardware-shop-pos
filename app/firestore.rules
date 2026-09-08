@@ -12,8 +12,9 @@ service cloud.firestore {
     }
 
     match /staff/{staffId} {
-      allow read: if isAuthenticated() && request.auth.uid == staffId;
-      allow create, update, delete: if false;
+      allow read: if isAuthenticated() && request.auth.uid == staffId || isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /products/{productId} {

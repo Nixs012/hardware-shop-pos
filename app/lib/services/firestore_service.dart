@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../models/failed_sale.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
+import '../models/staff.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -141,5 +142,17 @@ class FirestoreService {
     if (snapshot.docs.isEmpty) return null;
     final doc = snapshot.docs.first;
     return Sale.fromMap(doc.data(), doc.id);
+  }
+
+  Stream<List<Staff>> getStaffStream() {
+    return _db.collection('staff').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Staff.fromMap(doc.data(), doc.id))
+          .toList();
+    });
+  }
+
+  Future<void> updateStaff(Staff staff) {
+    return _db.collection('staff').doc(staff.id).update(staff.toMap());
   }
 }
