@@ -411,17 +411,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   if (_isAdmin)
                     DataCell(
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-                        tooltip: 'Edit Product',
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ProductFormScreen(existingProduct: product),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.edit,
+                              size: 18,
+                              color: Colors.blue,
                             ),
-                          );
-                        },
+                            tooltip: 'Edit Product',
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ProductFormScreen(existingProduct: product),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.redAccent,
+                            ),
+                            tooltip: 'Delete Product',
+                            onPressed: () => _confirmDeleteProduct(product),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -545,7 +563,36 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
             ),
             trailing: _isAdmin
-                ? const Icon(Icons.edit, color: AppTheme.secondaryColor)
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          color: AppTheme.secondaryColor,
+                          size: 20,
+                        ),
+                        tooltip: 'Edit Product',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ProductFormScreen(existingProduct: product),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                        tooltip: 'Delete Product',
+                        onPressed: () => _confirmDeleteProduct(product),
+                      ),
+                    ],
+                  )
                 : null,
             onTap: _isAdmin
                 ? () {
@@ -561,5 +608,66 @@ class _ProductsScreenState extends State<ProductsScreen> {
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteProduct(Product product) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.backgroundColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppTheme.secondaryColor.withValues(alpha: 0.2),
+          ),
+        ),
+        title: const Text(
+          'Delete Product',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Delete ${product.name}? This cannot be undone.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppTheme.secondaryColor),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _firestoreService.deleteProduct(product.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${product.name} deleted.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete product: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

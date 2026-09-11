@@ -213,6 +213,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           );
 
+          final accountSection = _buildAccountSection();
+
           return LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 900;
@@ -224,23 +226,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (_isAdmin)
+                      if (_isAdmin) ...[
                         Expanded(
                           flex: 6,
                           child: _buildStaffSection(),
                         ),
-                      if (_isAdmin) const SizedBox(width: 24),
+                        const SizedBox(width: 24),
+                      ],
                       Expanded(
                         flex: 5,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            accountSection,
                             if (_isAdmin) ...[
+                              const SizedBox(height: 24),
                               _buildPrinterSection(),
                               const SizedBox(height: 24),
                               failedSalesWidget,
                               const Divider(height: 36, color: Colors.white24),
-                            ],
+                            ] else
+                              const SizedBox(height: 24),
                             logoutButton,
                           ],
                         ),
@@ -254,14 +260,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
+                  accountSection,
                   if (_isAdmin) ...[
+                    const SizedBox(height: 24),
                     _buildStaffSection(),
                     const SizedBox(height: 24),
                     _buildPrinterSection(),
                     const SizedBox(height: 24),
                     failedSalesWidget,
                     const Divider(height: 48, color: Colors.white24),
-                  ],
+                  ] else
+                    const SizedBox(height: 24),
                   logoutButton,
                 ],
               );
@@ -269,6 +278,331 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildAccountSection() {
+    return Card(
+      color: Colors.white.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: AppTheme.secondaryColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.security, color: AppTheme.primaryColor),
+                SizedBox(width: 10),
+                Text(
+                  'Account & Security',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Logged in as: ${widget.currentStaff.name} (${widget.currentStaff.role.toUpperCase()})',
+              style: const TextStyle(
+                color: AppTheme.secondaryColor,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              widget.currentStaff.email,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    AppTheme.secondaryColor.withValues(alpha: 0.15),
+                foregroundColor: Colors.white,
+                side: BorderSide(
+                  color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+                ),
+              ),
+              onPressed: _showChangePasswordDialog,
+              icon: const Icon(Icons.lock_reset, size: 18),
+              label: const Text('Change Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool obscureCurrent = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isLoading = false;
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.backgroundColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: AppTheme.secondaryColor.withValues(alpha: 0.2),
+                ),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.lock_outline, color: AppTheme.primaryColor),
+                  SizedBox(width: 10),
+                  Text(
+                    'Change Password',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (errorMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.redAccent,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                errorMessage!,
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    TextField(
+                      controller: currentPasswordController,
+                      obscureText: obscureCurrent,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureCurrent
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: AppTheme.secondaryColor,
+                          ),
+                          onPressed: () => setDialogState(
+                            () => obscureCurrent = !obscureCurrent,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: newPasswordController,
+                      obscureText: obscureNew,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        helperText: 'Minimum 6 characters',
+                        helperStyle:
+                            const TextStyle(color: AppTheme.secondaryColor),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureNew
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: AppTheme.secondaryColor,
+                          ),
+                          onPressed: () => setDialogState(
+                            () => obscureNew = !obscureNew,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: obscureConfirm,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureConfirm
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: AppTheme.secondaryColor,
+                          ),
+                          onPressed: () => setDialogState(
+                            () => obscureConfirm = !obscureConfirm,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                if (!isLoading)
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: AppTheme.secondaryColor),
+                    ),
+                  ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final currentPwd = currentPasswordController.text;
+                          final newPwd = newPasswordController.text;
+                          final confirmPwd = confirmPasswordController.text;
+
+                          if (currentPwd.isEmpty ||
+                              newPwd.isEmpty ||
+                              confirmPwd.isEmpty) {
+                            setDialogState(() {
+                              errorMessage =
+                                  'Please fill in all password fields.';
+                            });
+                            return;
+                          }
+
+                          if (newPwd.length < 6) {
+                            setDialogState(() {
+                              errorMessage =
+                                  'New password must be at least 6 characters.';
+                            });
+                            return;
+                          }
+
+                          if (newPwd != confirmPwd) {
+                            setDialogState(() {
+                              errorMessage = 'New passwords do not match.';
+                            });
+                            return;
+                          }
+
+                          if (newPwd == currentPwd) {
+                            setDialogState(() {
+                              errorMessage =
+                                  'New password must be different from current password.';
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isLoading = true;
+                            errorMessage = null;
+                          });
+
+                          try {
+                            await AuthService().changePassword(
+                              currentPassword: currentPwd,
+                              newPassword: newPwd,
+                            );
+
+                            if (!dialogContext.mounted) return;
+                            Navigator.pop(dialogContext);
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Password changed successfully.',
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            final errString = e.toString().toLowerCase();
+                            String friendlyMsg = 'Failed to change password.';
+
+                            if (errString.contains('wrong-password') ||
+                                errString.contains('invalid-credential') ||
+                                errString.contains('invalid-password')) {
+                              friendlyMsg = 'Current password is incorrect.';
+                            } else if (errString.contains('weak-password')) {
+                              friendlyMsg =
+                                  'New password is too weak. Please choose a stronger one.';
+                            } else if (errString
+                                .contains('requires-recent-login')) {
+                              friendlyMsg =
+                                  'Session expired. Please log out and log in again.';
+                            } else {
+                              friendlyMsg = e
+                                  .toString()
+                                  .replaceAll('Exception: ', '');
+                            }
+
+                            setDialogState(() {
+                              isLoading = false;
+                              errorMessage = friendlyMsg;
+                            });
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Text('Update Password'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
