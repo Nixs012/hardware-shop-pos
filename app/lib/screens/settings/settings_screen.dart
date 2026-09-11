@@ -308,6 +308,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (staffList.isEmpty) {
                   return const Text('No staff members found.');
                 }
+
+                // Auto-correct any legacy role typos or casing (e.g., 'CAHIER' -> 'cashier')
+                for (final s in staffList) {
+                  final cleanRole = s.role.trim().toLowerCase();
+                  if (cleanRole != 'admin' && cleanRole != 'cashier') {
+                    _firestoreService.updateStaff(
+                      Staff(
+                        id: s.id,
+                        name: s.name,
+                        role: 'cashier',
+                        email: s.email,
+                        active: s.active,
+                        pin: s.pin,
+                        authUid: s.authUid,
+                      ),
+                    );
+                  }
+                }
+
                 return ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -317,10 +336,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   itemBuilder: (context, index) {
                     final staff = staffList[index];
                     final isSelf = staff.id == widget.currentStaff.id;
+                    final displayRole =
+                        staff.role.trim().toLowerCase() == 'admin'
+                            ? 'ADMIN'
+                            : 'CASHIER';
                     return ListTile(
                       title: Text(staff.name),
                       subtitle: Text(
-                        '${staff.email}\nRole: ${staff.role.toUpperCase()}',
+                        '${staff.email}\nRole: $displayRole',
                       ),
                       isThreeLine: true,
                       trailing: Row(
@@ -466,7 +489,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: 'cashier',
                           child: Text('Cashier'),
                         ),
-                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                        DropdownMenuItem(
+                          value: 'admin',
+                          child: Text('Admin'),
+                        ),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -505,7 +531,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Staff(
                                 id: '',
                                 name: nameController.text.trim(),
-                                role: selectedRole,
+                                role: selectedRole.toLowerCase(),
                                 email: emailController.text.trim(),
                               ),
                             );
@@ -545,7 +571,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showEditStaffDialog(Staff staff) {
     final nameController = TextEditingController(text: staff.name);
-    String selectedRole = staff.role;
+    final normalizedRole =
+        staff.role.trim().toLowerCase() == 'admin' ? 'admin' : 'cashier';
+    String selectedRole = normalizedRole;
     bool isLoading = false;
 
     showDialog(
@@ -579,7 +607,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: 'cashier',
                           child: Text('Cashier'),
                         ),
-                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                        DropdownMenuItem(
+                          value: 'admin',
+                          child: Text('Admin'),
+                        ),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -613,7 +644,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             final updatedStaff = Staff(
                               id: staff.id,
                               name: nameController.text.trim(),
-                              role: selectedRole,
+                              role: selectedRole.toLowerCase(),
                               email: staff.email,
                               active: staff.active,
                               pin: staff.pin,
