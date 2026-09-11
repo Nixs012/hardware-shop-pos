@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'dart:async';
 
@@ -212,7 +213,9 @@ class _BillingScreenState extends State<BillingScreen> {
         ),
       );
       _lastCompletedSale = sale;
-      unawaited(_printSale(sale));
+      if (!kIsWeb) {
+        unawaited(_printSale(sale));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -279,6 +282,19 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _reprintLastReceipt() async {
+    if (kIsWeb) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Receipt printing is only available on the Android app.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
     try {
       final sale =
           _lastCompletedSale ?? await _firestoreService.getLatestSale();
@@ -666,14 +682,15 @@ class _BillingScreenState extends State<BillingScreen> {
           color: Colors.white.withValues(alpha: 0.05),
           child: Column(
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _reprintLastReceipt,
-                  icon: const Icon(Icons.receipt_long),
-                  label: const Text('Reprint last receipt'),
+              if (!kIsWeb)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _reprintLastReceipt,
+                    icon: const Icon(Icons.receipt_long),
+                    label: const Text('Reprint last receipt'),
+                  ),
                 ),
-              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 
 import '../../models/failed_sale.dart';
@@ -38,6 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadPrinterSettings() async {
+    if (kIsWeb) return;
     _shopNameController.text = await _printerService.getShopName();
     _addressPhoneController.text = await _printerService.getAddressPhone();
     _footerController.text = await _printerService.getFooterMessage();
@@ -160,61 +162,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }
 
           final failedSales = snapshot.data ?? [];
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
+
+          final failedSalesWidget = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_isAdmin) ...[
-                _buildStaffSection(),
-                const SizedBox(height: 24),
-                _buildPrinterSection(),
-                const SizedBox(height: 24),
-                Text(
-                  'Needs Review',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sales that failed to sync are stored on this device until an Admin retries them.',
-                  style: TextStyle(
-                    color: AppTheme.secondaryColor.withValues(alpha: 0.8),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (failedSales.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: Text('No failed sales need review.')),
-                  )
-                else
-                  ...failedSales.map(_buildFailedSale),
-                const Divider(height: 48, color: Colors.white24),
-              ],
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  onPressed: () async {
-                    await AuthService().logout();
-                  },
-                  icon: const Icon(Icons.logout, color: Colors.white),
-                  label: const Text(
-                    'Log Out',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              Text(
+                'Needs Review',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+              const SizedBox(height: 8),
+              Text(
+                'Sales that failed to sync are stored on this device until an Admin retries them.',
+                style: TextStyle(
+                  color: AppTheme.secondaryColor.withValues(alpha: 0.8),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (failedSales.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('No failed sales need review.')),
+                )
+              else
+                ...failedSales.map(_buildFailedSale),
             ],
+          );
+
+          final logoutButton = Padding(
+            padding: const EdgeInsets.only(top: 16.0),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: () async {
+                await AuthService().logout();
+              },
+              icon: const Icon(Icons.logout, color: Colors.white),
+              label: const Text(
+                'Log Out',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 900;
+
+              if (isWide) {
+                return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(24),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_isAdmin)
+                        Expanded(
+                          flex: 6,
+                          child: _buildStaffSection(),
+                        ),
+                      if (_isAdmin) const SizedBox(width: 24),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_isAdmin) ...[
+                              _buildPrinterSection(),
+                              const SizedBox(height: 24),
+                              failedSalesWidget,
+                              const Divider(height: 36, color: Colors.white24),
+                            ],
+                            logoutButton,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (_isAdmin) ...[
+                    _buildStaffSection(),
+                    const SizedBox(height: 24),
+                    _buildPrinterSection(),
+                    const SizedBox(height: 24),
+                    failedSalesWidget,
+                    const Divider(height: 48, color: Colors.white24),
+                  ],
+                  logoutButton,
+                ],
+              );
+            },
           );
         },
       ),
@@ -604,6 +655,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildPrinterSection() {
+    if (kIsWeb) {
+      return Card(
+        color: Colors.white.withValues(alpha: 0.05),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppTheme.secondaryColor.withValues(alpha: 0.2),
+          ),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.all(20),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.print_disabled,
+                color: AppTheme.secondaryColor,
+                size: 28,
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Receipt Printing',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Bluetooth thermal receipt printing is only available on the Android POS app. This web portal is configured for store management, staff administration, and reports.',
+                      style: TextStyle(
+                        color: AppTheme.secondaryColor,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),

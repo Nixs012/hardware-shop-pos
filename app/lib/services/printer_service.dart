@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 
@@ -25,9 +25,10 @@ class PrinterService {
 
   final PrinterManager _manager = PrinterManager();
 
-  bool get isConnected => _manager.isConnected;
+  bool get isConnected => kIsWeb ? false : _manager.isConnected;
 
   Future<List<BluetoothPrinterDevice>> scanBluetoothPrinters() async {
+    if (kIsWeb) return [];
     final devices = await _manager.scanPrinters(
       types: {PrinterConnectionType.bluetooth},
       timeout: const Duration(seconds: 5),
@@ -36,12 +37,14 @@ class PrinterService {
   }
 
   Future<void> connectToPrinter(BluetoothPrinterDevice device) async {
+    if (kIsWeb) return;
     await _manager.connect(device);
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_printerAddressKey, device.address);
   }
 
   Future<bool> autoReconnect() async {
+    if (kIsWeb) return false;
     final preferences = await SharedPreferences.getInstance();
     final address = preferences.getString(_printerAddressKey);
     if (address == null || address.isEmpty) return false;
@@ -102,6 +105,7 @@ class PrinterService {
     required String staffName,
     required List<ReceiptItem> items,
   }) async {
+    if (kIsWeb) return;
     if (!isConnected) {
       await autoReconnect();
     }
@@ -196,7 +200,10 @@ class PrinterService {
     await _manager.printTicket(ticket);
   }
 
-  Future<void> dispose() => _manager.dispose();
+  Future<void> dispose() async {
+    if (kIsWeb) return;
+    await _manager.dispose();
+  }
 
   String _money(double amount) => 'KSh ${amount.toStringAsFixed(2)}';
 
