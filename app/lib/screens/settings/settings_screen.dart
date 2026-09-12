@@ -299,12 +299,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Icon(Icons.security, color: AppTheme.primaryColor),
                 SizedBox(width: 10),
-                Text(
-                  'Account & Security',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                Expanded(
+                  child: Text(
+                    'Account & Security',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],
@@ -369,11 +373,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Icon(Icons.lock_outline, color: AppTheme.primaryColor),
                   SizedBox(width: 10),
-                  Text(
-                    'Change Password',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      'Change Password',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],

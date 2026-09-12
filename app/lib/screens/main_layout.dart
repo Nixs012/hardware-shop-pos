@@ -326,11 +326,15 @@ class _MainLayoutState extends State<MainLayout> {
                     color: AppTheme.secondaryColor.withValues(alpha: 0.7),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Desktop Portal',
-                    style: TextStyle(
-                      color: AppTheme.secondaryColor.withValues(alpha: 0.7),
-                      fontSize: 11,
+                  const Expanded(
+                    child: Text(
+                      'Desktop Portal',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppTheme.secondaryColor,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ],
@@ -359,27 +363,37 @@ class _MainLayoutState extends State<MainLayout> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Icon(current.icon, color: AppTheme.primaryColor, size: 22),
-              const SizedBox(width: 12),
-              Text(
-                current.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Row(
+              children: [
+                Icon(current.icon, color: AppTheme.primaryColor, size: 22),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    current.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '•  ${current.subtitle}',
-                style: const TextStyle(
-                  color: AppTheme.secondaryColor,
-                  fontSize: 13,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    '•  ${current.subtitle}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.secondaryColor,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

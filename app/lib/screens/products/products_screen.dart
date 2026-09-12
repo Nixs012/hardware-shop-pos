@@ -360,15 +360,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          '${product.quantityOnHand} ${product.unit}',
-                          style: TextStyle(
-                            color: isOut
-                                ? Colors.redAccent
-                                : isLow
-                                    ? Colors.orange
-                                    : Colors.white,
-                            fontWeight: FontWeight.bold,
+                        Flexible(
+                          child: Text(
+                            '${product.quantityOnHand} ${product.unit}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isOut
+                                  ? Colors.redAccent
+                                  : isLow
+                                      ? Colors.orange
+                                      : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -506,6 +510,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 Expanded(
                   child: Text(
                     product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -513,12 +519,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   ),
                 ),
-                if (isLowStock)
+                if (isLowStock) ...[
+                  const SizedBox(width: 8),
                   const Icon(
                     Icons.warning_amber_rounded,
                     color: Colors.orange,
                     size: 20,
                   ),
+                ],
               ],
             ),
             subtitle: Padding(

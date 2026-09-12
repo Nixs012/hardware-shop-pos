@@ -554,15 +554,18 @@ class _BillingScreenState extends State<BillingScreen> {
             children: [
               const Icon(Icons.shopping_cart, color: Colors.white),
               const SizedBox(width: 8),
-              const Text(
-                'Current Sale',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              const Expanded(
+                child: Text(
+                  'Current Sale',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              const Spacer(),
               if (_cart.isNotEmpty)
                 IconButton(
                   icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
@@ -694,14 +697,19 @@ class _BillingScreenState extends State<BillingScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Total',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  const Expanded(
+                    child: Text(
+                      'Total',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       'KSh ${_cartTotal.toStringAsFixed(2)}',
