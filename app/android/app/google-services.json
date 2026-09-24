@@ -12,7 +12,12 @@
           "package_name": "com.example.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "588255666245-sa140kd5f6h5jr9g15m4mj8hafgic1l8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDMsjS7xThIaOqpSZNBpOhfzQ9A_3qd1z0"
@@ -20,7 +25,41 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "588255666245-sa140kd5f6h5jr9g15m4mj8hafgic1l8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588255666245:android:a25650d70f9abf77c6c32c",
+        "android_client_info": {
+          "package_name": "com.shamamo.pos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "588255666245-sa140kd5f6h5jr9g15m4mj8hafgic1l8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMsjS7xThIaOqpSZNBpOhfzQ9A_3qd1z0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "588255666245-sa140kd5f6h5jr9g15m4mj8hafgic1l8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

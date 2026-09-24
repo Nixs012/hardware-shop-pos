@@ -61,7 +61,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDMsjS7xThIaOqpSZNBpOhfzQ9A_3qd1z0',
-    appId: '1:588255666245:android:01f93abb37ed5009c6c32c',
+    appId: '1:588255666245:android:a25650d70f9abf77c6c32c',
     messagingSenderId: '588255666245',
     projectId: 'shamamo-pos',
     storageBucket: 'shamamo-pos.firebasestorage.app',

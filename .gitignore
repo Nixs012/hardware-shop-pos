@@ -107,3 +107,8 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Android Signing Secrets
+**/key.properties
+**/*.keystore
+**/*.jks
