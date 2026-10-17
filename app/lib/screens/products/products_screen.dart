@@ -46,7 +46,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       body: StreamBuilder<List<Product>>(
-        stream: _firestoreService.getProductsStream(),
+        stream: _firestoreService.getProductsStream(isAdmin: _isAdmin),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

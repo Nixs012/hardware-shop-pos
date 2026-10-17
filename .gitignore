@@ -112,3 +112,6 @@ next-env.d.ts
 **/key.properties
 **/*.keystore
 **/*.jks
+
+# Executables
+*.exe

@@ -22,7 +22,27 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // Cost data for products is strictly restricted to admins only
+    match /product_costs/{productId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Sales are immutable. Cashiers can only read their own sales without cost data.
     match /sales/{saleId} {
+      allow read: if (isAuthenticated() && resource.data.staff_id == request.auth.uid) || isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Cost data snapshots for sales are strictly restricted to admins only
+    match /sales_costs/{saleId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Credit repayments are tracked in customer_payments. Sales are never edited.
+    match /customer_payments/{paymentId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if false;

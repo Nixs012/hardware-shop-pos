@@ -92,7 +92,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final range = _getSelectedRange();
 
     return StreamBuilder<List<Sale>>(
-      stream: _firestoreService.getSalesStream(),
+      stream: _firestoreService.getSalesStream(
+        isAdmin: _isAdmin,
+        staffId: _isAdmin ? null : widget.currentStaff.id,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -376,7 +379,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final range = _getSelectedRange();
 
     return StreamBuilder<List<Sale>>(
-      stream: _firestoreService.getSalesStream(),
+      stream: _firestoreService.getSalesStream(isAdmin: true),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -506,7 +509,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _buildStockBalanceTab() {
     return StreamBuilder<List<Product>>(
-      stream: _firestoreService.getProductsStream(),
+      stream: _firestoreService.getProductsStream(isAdmin: _isAdmin),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

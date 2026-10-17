@@ -187,7 +187,11 @@ class _BillingScreenState extends State<BillingScreen> {
         lineItems: _cart.values.toList(),
       );
 
-      await _firestoreService.processSale(sale);
+      final bool isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
+      await _firestoreService.processSale(
+        sale,
+        includeCostSnapshot: isAdmin,
+      );
 
       if (!mounted) {
         return;
@@ -296,8 +300,12 @@ class _BillingScreenState extends State<BillingScreen> {
       return;
     }
     try {
+      final bool isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
       final sale =
-          _lastCompletedSale ?? await _firestoreService.getLatestSale();
+          _lastCompletedSale ??
+          await _firestoreService.getLatestSale(
+            staffId: isAdmin ? null : widget.currentStaff.id,
+          );
       if (sale == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -419,7 +427,9 @@ class _BillingScreenState extends State<BillingScreen> {
         ),
         Expanded(
           child: StreamBuilder<List<Product>>(
-            stream: _firestoreService.getProductsStream(),
+            stream: _firestoreService.getProductsStream(
+              isAdmin: widget.currentStaff.role.toLowerCase() == 'admin',
+            ),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
