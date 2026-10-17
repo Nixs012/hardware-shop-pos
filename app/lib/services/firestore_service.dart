@@ -1,18 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'dart:async';
-import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/customer_payment.dart';
 import '../models/failed_sale.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
 import '../models/staff.dart';
+import 'sync_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  static const _failedSalesKey = 'failed_sales_needs_review';
 
   Future<void> addProduct(Product product) {
     final batch = _db.batch();
@@ -43,17 +41,37 @@ class FirestoreService {
   }
 
   /// Streams products. If [isAdmin] is false, cost data is never requested or read.
+  /// Seamlessly loads from local cache for offline/airplane mode support.
   Stream<List<Product>> getProductsStream({bool isAdmin = false}) {
+    final controller = StreamController<List<Product>>();
+
+    // Immediately emit cached products so offline users don't see empty screens
+    SyncService.instance.getCachedProducts().then((cached) {
+      if (cached.isNotEmpty && !controller.isClosed) {
+        controller.add(cached);
+      }
+    });
+
     if (!isAdmin) {
-      return _db.collection('products').snapshots().map((snapshot) {
-        return snapshot.docs
+      final sub = _db.collection('products').snapshots().listen((snapshot) {
+        final products = snapshot.docs
             .map((doc) => Product.fromMap(doc.data(), doc.id))
             .toList();
+        SyncService.instance.cacheProducts(products);
+        if (!controller.isClosed) {
+          controller.add(products);
+        }
+      }, onError: (Object err) {
+        if (!controller.isClosed) {
+          controller.addError(err);
+        }
       });
+
+      controller.onCancel = () => sub.cancel();
+      return controller.stream;
     }
 
     // For Admin: merge /products with admin-only /product_costs
-    final controller = StreamController<List<Product>>();
     List<QueryDocumentSnapshot<Map<String, dynamic>>>? productDocs;
     Map<String, Map<String, dynamic>> costs = {};
 
@@ -63,6 +81,7 @@ class FirestoreService {
         final costData = costs[doc.id];
         return Product.fromMap(doc.data(), doc.id, costData);
       }).toList();
+      SyncService.instance.cacheProducts(products);
       if (!controller.isClosed) {
         controller.add(products);
       }
@@ -71,13 +90,14 @@ class FirestoreService {
     final sub1 = _db.collection('products').snapshots().listen((snap) {
       productDocs = snap.docs;
       emitMerged();
-    }, onError: controller.addError);
+    }, onError: (Object err) {
+      if (!controller.isClosed) controller.addError(err);
+    });
 
     final sub2 = _db.collection('product_costs').snapshots().listen((snap) {
       costs = {for (final doc in snap.docs) doc.id: doc.data()};
       emitMerged();
     }, onError: (Object _) {
-      // If error or permissions, still emit products
       emitMerged();
     });
 
@@ -90,105 +110,18 @@ class FirestoreService {
   }
 
   Future<void> processSale(Sale sale, {bool includeCostSnapshot = true}) async {
-    final batch = _db.batch();
-
-    // 1. Add public sale document (strictly without unit_cost_at_sale)
-    final saleRef = _db.collection('sales').doc(sale.id);
-    batch.set(saleRef, sale.toMap());
-
-    // 2. Add admin-only sales_costs document with unit_cost_at_sale snapshot
-    if (includeCostSnapshot) {
-      final costRef = _db.collection('sales_costs').doc(sale.id);
-      batch.set(costRef, sale.toCostMap());
-    }
-
-    // 3. Atomically decrement stock for each line item
-    for (final item in sale.lineItems) {
-      final productRef = _db.collection('products').doc(item.productId);
-      batch.update(productRef, {
-        'quantity_on_hand': FieldValue.increment(-item.quantity),
-      });
-    }
-
-    unawaited(
-      batch.commit().catchError((Object error) {
-        unawaited(_saveFailedSale(sale, error.toString()));
-      }),
+    await SyncService.instance.queueSale(
+      sale,
+      includeCostSnapshot: includeCostSnapshot,
     );
   }
 
-  Future<List<FailedSaleRecord>> getFailedSales() async {
-    final preferences = await SharedPreferences.getInstance();
-    final encoded = preferences.getString(_failedSalesKey);
-    if (encoded == null || encoded.isEmpty) return [];
-
-    try {
-      final stored = jsonDecode(encoded) as Map<String, dynamic>;
-      final records = <FailedSaleRecord>[];
-      for (final value in stored.values) {
-        try {
-          records.add(
-            FailedSaleRecord.fromMap(Map<String, dynamic>.from(value as Map)),
-          );
-        } catch (_) {}
-      }
-      records.sort((a, b) => b.failedAt.compareTo(a.failedAt));
-      return records;
-    } catch (_) {
-      return [];
-    }
+  Future<List<FailedSaleRecord>> getFailedSales() {
+    return SyncService.instance.getFailedSales();
   }
 
-  Future<void> retryFailedSale(FailedSaleRecord record) async {
-    final batch = _db.batch();
-    batch.set(_db.collection('sales').doc(record.sale.id), record.sale.toMap());
-    batch.set(
-      _db.collection('sales_costs').doc(record.sale.id),
-      record.sale.toCostMap(),
-    );
-    for (final item in record.sale.lineItems) {
-      batch.update(_db.collection('products').doc(item.productId), {
-        'quantity_on_hand': FieldValue.increment(-item.quantity),
-      });
-    }
-
-    try {
-      await batch.commit().timeout(const Duration(seconds: 10));
-      await _removeFailedSale(record.sale.id);
-    } catch (error) {
-      await _saveFailedSale(record.sale, error.toString());
-      rethrow;
-    }
-  }
-
-  Future<void> _saveFailedSale(Sale sale, String errorMessage) async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final stored = _readFailedSaleMap(preferences);
-      stored[sale.id] = FailedSaleRecord(
-        sale: sale,
-        errorMessage: errorMessage,
-        failedAt: DateTime.now(),
-      ).toMap();
-      await preferences.setString(_failedSalesKey, jsonEncode(stored));
-    } catch (_) {}
-  }
-
-  Future<void> _removeFailedSale(String saleId) async {
-    final preferences = await SharedPreferences.getInstance();
-    final stored = _readFailedSaleMap(preferences);
-    stored.remove(saleId);
-    await preferences.setString(_failedSalesKey, jsonEncode(stored));
-  }
-
-  Map<String, dynamic> _readFailedSaleMap(SharedPreferences preferences) {
-    final encoded = preferences.getString(_failedSalesKey);
-    if (encoded == null || encoded.isEmpty) return {};
-    try {
-      return Map<String, dynamic>.from(jsonDecode(encoded) as Map);
-    } catch (_) {
-      return {};
-    }
+  Future<void> retryFailedSale(FailedSaleRecord record) {
+    return SyncService.instance.retryFailedSale(record);
   }
 
   /// Streams sales. Cashiers only read sales documents (without cost fields).

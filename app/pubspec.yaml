@@ -40,6 +40,9 @@ dependencies:
   unified_esc_pos_printer: ^3.4.0
   uuid: ^4.6.0
   shared_preferences: ^2.5.3
+  connectivity_plus: ^7.3.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
 dev_dependencies:
   flutter_test:

@@ -6,6 +6,7 @@ import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
 import '../models/staff.dart';
 import '../utils/theme.dart';
+import '../widgets/sync_status_indicator.dart';
 
 class MainLayout extends StatefulWidget {
   final Staff currentStaff;
@@ -94,6 +95,8 @@ class _MainLayoutState extends State<MainLayout> {
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             actions: [
+              const Center(child: SyncStatusIndicator(compact: true)),
+              const SizedBox(width: 8),
               Padding(
                 padding: const EdgeInsets.only(right: 16.0),
                 child: Image.asset('assets/images/logo.png', height: 32),
@@ -395,28 +398,7 @@ class _MainLayoutState extends State<MainLayout> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.circle, color: Colors.green, size: 8),
-                SizedBox(width: 6),
-                Text(
-                  'Connected',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SyncStatusIndicator(),
         ],
       ),
     );

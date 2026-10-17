@@ -5,8 +5,15 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import '../models/staff.dart';
 
 class AuthService {
-  final auth.FirebaseAuth _auth = auth.FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final auth.FirebaseAuth? _authInstance;
+  final FirebaseFirestore? _firestoreInstance;
+
+  AuthService({auth.FirebaseAuth? auth, FirebaseFirestore? firestore})
+      : _authInstance = auth,
+        _firestoreInstance = firestore;
+
+  auth.FirebaseAuth get _auth => _authInstance ?? auth.FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => _firestoreInstance ?? FirebaseFirestore.instance;
 
   Future<Staff?> restoreCurrentStaff() async {
     final user = _auth.currentUser;

@@ -11,6 +11,7 @@ import '../../models/sale_line_item.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
+import '../../services/sync_service.dart';
 import '../../utils/theme.dart';
 
 class BillingScreen extends StatefulWidget {
@@ -201,18 +202,23 @@ class _BillingScreenState extends State<BillingScreen> {
         _cart.clear();
       });
 
+      final isOnline = SyncService.instance.isOnline;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             hasOversold
                 ? 'Sale Complete! Warning: Some items were oversold.'
-                : 'Sale Successful',
+                : (isOnline
+                    ? 'Sale Successful'
+                    : 'Sale saved offline (queued for auto-sync)'),
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
-          backgroundColor: hasOversold ? Colors.orange : Colors.green,
+          backgroundColor: hasOversold
+              ? Colors.orange
+              : (isOnline ? Colors.green : Colors.amber.shade800),
           duration: const Duration(seconds: 4),
         ),
       );
