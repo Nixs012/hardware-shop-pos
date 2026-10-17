@@ -113,7 +113,8 @@ class PrinterService {
       throw const PrinterConnectionException('Printer not connected');
     }
 
-    final ticket = await Ticket.create(await getPaperSize());
+    final paperSize = await getPaperSize();
+    final ticket = await Ticket.create(paperSize);
     final shopName = await getShopName();
     final addressPhone = await getAddressPhone();
     final footerMessage = await getFooterMessage();
@@ -132,7 +133,7 @@ class PrinterService {
     }
     ticket.separator();
     ticket.text('Receipt #: ${sale.id}');
-    ticket.text('Date: ${sale.timestamp.toLocal()}');
+    ticket.text('Date: ${formatReceiptDate(sale.timestamp)}');
     ticket.text('Cashier: $staffName');
     ticket.separator();
     ticket.row([
@@ -157,23 +158,26 @@ class PrinterService {
     ticket.separator();
     for (final item in items) {
       ticket.row([
-        PrintColumn(text: item.name, flex: 5),
         PrintColumn(
-          text: _formatQuantity(item.quantity),
+          text: truncateItemName(item.name, paperSize),
+          flex: 5,
+        ),
+        PrintColumn(
+          text: formatQuantity(item.quantity),
           flex: 2,
           align: PrintAlign.center,
         ),
-        PrintColumn(text: _money(item.total), flex: 3, align: PrintAlign.right),
+        PrintColumn(text: formatMoney(item.total), flex: 3, align: PrintAlign.right),
       ]);
     }
     ticket.separator();
     ticket.text(
-      'Subtotal: ${_money(sale.totalAmount)}',
+      'Subtotal: ${formatMoney(sale.totalAmount)}',
       align: PrintAlign.right,
     );
-    ticket.text('Discount: ${_money(0)}', align: PrintAlign.right);
+    ticket.text('Discount: ${formatMoney(0)}', align: PrintAlign.right);
     ticket.text(
-      'TOTAL: ${_money(sale.totalAmount)}',
+      'TOTAL: ${formatMoney(sale.totalAmount)}',
       align: PrintAlign.right,
       style: const PrintTextStyle(
         bold: true,
@@ -188,7 +192,7 @@ class PrinterService {
     ticket.cut();
 
     _debugPrintTicket(
-      paperSize: await getPaperSize(),
+      paperSize: paperSize,
       shopName: shopName,
       addressPhone: addressPhone,
       sale: sale,
@@ -205,9 +209,32 @@ class PrinterService {
     await _manager.dispose();
   }
 
-  String _money(double amount) => 'KSh ${amount.toStringAsFixed(2)}';
+  static String formatReceiptDate(DateTime dt) {
+    final local = dt.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final year = local.year.toString();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year  $hour:$minute';
+  }
 
-  String _formatQuantity(double quantity) {
+  static String truncateItemName(String name, PaperSize paperSize) {
+    final maxLen = paperSize == PaperSize.mm80 ? 24 : 16;
+    if (name.length <= maxLen) return name;
+    return '${name.substring(0, maxLen - 1)}…';
+  }
+
+  static String formatMoney(double amount) {
+    final parts = amount.toStringAsFixed(2).split('.');
+    final integerPart = parts[0].replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return '$integerPart.${parts[1]}';
+  }
+
+  static String formatQuantity(double quantity) {
     return quantity == quantity.roundToDouble()
         ? quantity.toInt().toString()
         : quantity.toStringAsFixed(2);
@@ -230,19 +257,19 @@ class PrinterService {
       if (addressPhone.isNotEmpty) addressPhone,
       '-' * 32,
       'Receipt #: ${sale.id}',
-      'Date: ${sale.timestamp.toLocal()}',
+      'Date: ${formatReceiptDate(sale.timestamp)}',
       'Cashier: $staffName',
       '-' * 32,
       'Item                 Qty      Total',
       '-' * 32,
       ...items.map(
         (item) =>
-            '${item.name}  ${_formatQuantity(item.quantity)}  ${_money(item.total)}',
+            '${truncateItemName(item.name, paperSize)}  ${formatQuantity(item.quantity)}  ${formatMoney(item.total)}',
       ),
       '-' * 32,
-      'Subtotal: ${_money(sale.totalAmount)}',
-      'Discount: ${_money(0)}',
-      'TOTAL: ${_money(sale.totalAmount)}',
+      'Subtotal: ${formatMoney(sale.totalAmount)}',
+      'Discount: ${formatMoney(0)}',
+      'TOTAL: ${formatMoney(sale.totalAmount)}',
       '-' * 32,
       'Paid via: ${sale.paymentMethod}',
       '-' * 32,
