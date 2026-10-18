@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/customer_payment.dart';
+import '../models/expense.dart';
 import '../models/failed_sale.dart';
 import '../models/product.dart';
 import '../models/sale.dart';
@@ -238,5 +239,23 @@ class FirestoreService {
 
   Future<void> updateStaff(Staff staff) {
     return _db.collection('staff').doc(staff.id).update(staff.toMap());
+  }
+
+  // --- Expenses (Ledger for P&L) ---
+
+  Future<void> addExpense(Expense expense) {
+    return _db.collection('expenses').doc(expense.id).set(expense.toMap());
+  }
+
+  Future<void> deleteExpense(String expenseId) {
+    return _db.collection('expenses').doc(expenseId).delete();
+  }
+
+  Stream<List<Expense>> getExpensesStream() {
+    return _db.collection('expenses').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Expense.fromMap(doc.data(), doc.id))
+          .toList();
+    });
   }
 }

@@ -9,6 +9,7 @@ class AppTheme {
     0xFFB8BCC4,
   ); // Brushed Steel / Silver
   static const Color backgroundColor = Color(0xFF1A1A1A); // Dark Charcoal
+  static const Color surfaceColor = Color(0xFF242424); // Elevated Dark Card/Surface
 
   static ThemeData get darkTheme {
     return ThemeData(
