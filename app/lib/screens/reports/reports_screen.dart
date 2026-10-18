@@ -221,11 +221,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
             // Filter sales by date range & secondary filters
             final filteredSales = allSales.where((sale) {
-              final inRange = !sale.timestamp.isBefore(range.start) &&
+              final inRange =
+                  !sale.timestamp.isBefore(range.start) &&
                   !sale.timestamp.isAfter(range.end);
-              final matchesStaff = _selectedStaffId == 'All' ||
-                  sale.staffId == _selectedStaffId;
-              final matchesCategory = _selectedCategory == 'All' ||
+              final matchesStaff =
+                  _selectedStaffId == 'All' || sale.staffId == _selectedStaffId;
+              final matchesCategory =
+                  _selectedCategory == 'All' ||
                   sale.lineItems.any((item) {
                     final cat = productMap[item.productId]?.category ?? '';
                     return cat.toLowerCase() == _selectedCategory.toLowerCase();
@@ -254,7 +256,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               totalRevenue += sale.totalAmount;
               paymentBreakdown[sale.paymentMethod] =
                   (paymentBreakdown[sale.paymentMethod] ?? 0.0) +
-                      sale.totalAmount;
+                  sale.totalAmount;
 
               for (final item in sale.lineItems) {
                 totalProfit += item.profit;
@@ -268,10 +270,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
             );
             final outstandingPeriodCredit = totalCreditSales - totalRepayments;
 
-            final avgTicket =
-                transactionCount > 0 ? (totalRevenue / transactionCount) : 0.0;
-            final profitMargin =
-                totalRevenue > 0 ? (totalProfit / totalRevenue * 100) : 0.0;
+            final avgTicket = transactionCount > 0
+                ? (totalRevenue / transactionCount)
+                : 0.0;
+            final profitMargin = totalRevenue > 0
+                ? (totalProfit / totalRevenue * 100)
+                : 0.0;
 
             return LayoutBuilder(
               builder: (context, constraints) {
@@ -457,11 +461,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
             final expenses = expensesSnapshot.data ?? [];
 
             final filteredSales = sales.where((sale) {
-              final inRange = !sale.timestamp.isBefore(range.start) &&
+              final inRange =
+                  !sale.timestamp.isBefore(range.start) &&
                   !sale.timestamp.isAfter(range.end);
-              final matchesStaff = _selectedStaffId == 'All' ||
-                  sale.staffId == _selectedStaffId;
-              final matchesCategory = _selectedCategory == 'All' ||
+              final matchesStaff =
+                  _selectedStaffId == 'All' || sale.staffId == _selectedStaffId;
+              final matchesCategory =
+                  _selectedCategory == 'All' ||
                   sale.lineItems.any((item) {
                     final cat = productMap[item.productId]?.category ?? '';
                     return cat.toLowerCase() == _selectedCategory.toLowerCase();
@@ -626,8 +632,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(
-                            color: AppTheme.secondaryColor
-                                .withValues(alpha: 0.15),
+                            color: AppTheme.secondaryColor.withValues(
+                              alpha: 0.15,
+                            ),
                           ),
                         ),
                         child: Padding(
@@ -741,7 +748,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 padding: EdgeInsets.symmetric(vertical: 16.0),
                 child: Text(
                   'No operating expenses recorded for this period. Use "Add Expense" to log rent, transport, wages, etc.',
-                  style: TextStyle(color: AppTheme.secondaryColor, fontSize: 13),
+                  style: TextStyle(
+                    color: AppTheme.secondaryColor,
+                    fontSize: 13,
+                  ),
                 ),
               )
             else
@@ -791,6 +801,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         ),
                         IconButton(
                           icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: Colors.blueAccent,
+                          ),
+                          tooltip: 'Edit Expense',
+                          onPressed: () => _showEditExpenseDialog(exp),
+                        ),
+                        IconButton(
+                          icon: const Icon(
                             Icons.delete_outline,
                             size: 18,
                             color: Colors.redAccent,
@@ -825,10 +844,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final sales = snapshot.data ?? [];
 
         final filteredSales = sales.where((sale) {
-          final inRange = !sale.timestamp.isBefore(range.start) &&
+          final inRange =
+              !sale.timestamp.isBefore(range.start) &&
               !sale.timestamp.isAfter(range.end);
-          final matchesStaff = _selectedStaffId == 'All' ||
-              sale.staffId == _selectedStaffId;
+          final matchesStaff =
+              _selectedStaffId == 'All' || sale.staffId == _selectedStaffId;
           return inRange && matchesStaff;
         }).toList();
 
@@ -904,13 +924,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         style: ButtonStyle(
                           backgroundColor:
                               WidgetStateProperty.resolveWith<Color?>((states) {
-                            if (states.contains(WidgetState.selected)) {
-                              return AppTheme.primaryColor;
-                            }
-                            return Colors.white.withValues(alpha: 0.05);
-                          }),
-                          foregroundColor:
-                              WidgetStateProperty.all(Colors.white),
+                                if (states.contains(WidgetState.selected)) {
+                                  return AppTheme.primaryColor;
+                                }
+                                return Colors.white.withValues(alpha: 0.05);
+                              }),
+                          foregroundColor: WidgetStateProperty.all(
+                            Colors.white,
+                          ),
                         ),
                         segments: const [
                           ButtonSegment<String>(
@@ -950,8 +971,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: AppTheme.secondaryColor
-                              .withValues(alpha: 0.15),
+                          color: AppTheme.secondaryColor.withValues(
+                            alpha: 0.15,
+                          ),
                         ),
                       ),
                       child: ListView.separated(
@@ -1046,16 +1068,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
 
     final filtered = products.where((p) {
-      final matchesQuery = _stockSearchQuery.isEmpty ||
+      final matchesQuery =
+          _stockSearchQuery.isEmpty ||
           p.name.toLowerCase().contains(_stockSearchQuery) ||
           p.sku.toLowerCase().contains(_stockSearchQuery);
-      final matchesCat = _stockCategoryFilter == 'All' ||
+      final matchesCat =
+          _stockCategoryFilter == 'All' ||
           p.category.toLowerCase() == _stockCategoryFilter.toLowerCase();
       return matchesQuery && matchesCat;
     }).toList();
 
-    final lowStockCount =
-        products.where((p) => p.quantityOnHand <= p.lowStockThreshold).length;
+    final lowStockCount = products
+        .where((p) => p.quantityOnHand <= p.lowStockThreshold)
+        .length;
 
     double totalValuation = 0.0;
     if (_isAdmin) {
@@ -1085,8 +1110,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                     )
                   : isDesktop
-                      ? _buildDesktopStockTable(filtered)
-                      : _buildMobileStockList(filtered),
+                  ? _buildDesktopStockTable(filtered)
+                  : _buildMobileStockList(filtered),
             ),
           ],
         );
@@ -1261,7 +1286,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             rows: products.map((product) {
               final isLow =
                   product.quantityOnHand <= product.lowStockThreshold &&
-                      product.quantityOnHand > 0;
+                  product.quantityOnHand > 0;
               final isOut = product.quantityOnHand <= 0;
 
               return DataRow(
@@ -1301,8 +1326,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         color: isOut
                             ? Colors.redAccent
                             : isLow
-                                ? Colors.orange
-                                : Colors.white,
+                            ? Colors.orange
+                            : Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1356,29 +1381,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         color: isOut
                             ? Colors.red.withValues(alpha: 0.2)
                             : isLow
-                                ? Colors.orange.withValues(alpha: 0.2)
-                                : Colors.green.withValues(alpha: 0.2),
+                            ? Colors.orange.withValues(alpha: 0.2)
+                            : Colors.green.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                           color: isOut
                               ? Colors.red
                               : isLow
-                                  ? Colors.orange
-                                  : Colors.green,
+                              ? Colors.orange
+                              : Colors.green,
                         ),
                       ),
                       child: Text(
                         isOut
                             ? 'Out of Stock'
                             : isLow
-                                ? 'Low Stock'
-                                : 'In Stock',
+                            ? 'Low Stock'
+                            : 'In Stock',
                         style: TextStyle(
                           color: isOut
                               ? Colors.red
                               : isLow
-                                  ? Colors.orange
-                                  : Colors.green,
+                              ? Colors.orange
+                              : Colors.green,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1402,7 +1427,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final product = products[index];
         final isLowStock =
             product.quantityOnHand <= product.lowStockThreshold &&
-                product.quantityOnHand > 0;
+            product.quantityOnHand > 0;
         final isOut = product.quantityOnHand <= 0;
 
         return Card(
@@ -1414,8 +1439,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
               color: isOut
                   ? Colors.red.withValues(alpha: 0.5)
                   : isLowStock
-                      ? Colors.orange.withValues(alpha: 0.5)
-                      : Colors.transparent,
+                  ? Colors.orange.withValues(alpha: 0.5)
+                  : Colors.transparent,
             ),
           ),
           child: ListTile(
@@ -1444,8 +1469,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     color: isOut
                         ? Colors.redAccent
                         : isLowStock
-                            ? Colors.orange
-                            : Colors.white,
+                        ? Colors.orange
+                        : Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
@@ -1454,14 +1479,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   isOut
                       ? 'Out of Stock'
                       : isLowStock
-                          ? 'Low Stock'
-                          : 'In Stock',
+                      ? 'Low Stock'
+                      : 'In Stock',
                   style: TextStyle(
                     color: isOut
                         ? Colors.redAccent
                         : isLowStock
-                            ? Colors.orange
-                            : Colors.green,
+                        ? Colors.orange
+                        : Colors.green,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1488,8 +1513,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 scrollDirection: Axis.horizontal,
                 child: SegmentedButton<int>(
                   style: ButtonStyle(
-                    backgroundColor:
-                        WidgetStateProperty.resolveWith<Color?>((states) {
+                    backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      states,
+                    ) {
                       if (states.contains(WidgetState.selected)) {
                         return AppTheme.primaryColor;
                       }
@@ -1511,7 +1537,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         context: context,
                         firstDate: DateTime(2020),
                         lastDate: DateTime(2035),
-                        initialDateRange: _customDateRange ??
+                        initialDateRange:
+                            _customDateRange ??
                             DateTimeRange(
                               start: DateTime.now().subtract(
                                 const Duration(days: 7),
@@ -2004,7 +2031,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
             backgroundColor: AppTheme.surfaceColor,
             title: const Text(
               'Record Operating Expense',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             content: SingleChildScrollView(
               child: Column(
@@ -2013,7 +2043,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 children: [
                   const Text(
                     'Category',
-                    style: TextStyle(color: AppTheme.secondaryColor, fontSize: 12),
+                    style: TextStyle(
+                      color: AppTheme.secondaryColor,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Container(
@@ -2042,8 +2075,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: amountController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
                       labelText: 'Amount (KSh)',
@@ -2167,11 +2201,190 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (confirm == true) {
       await _firestoreService.deleteExpense(expense.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Expense deleted.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Expense deleted.')));
       }
     }
+  }
+
+  Future<void> _showEditExpenseDialog(Expense expense) async {
+    final amountController = TextEditingController(
+      text: expense.amount.toStringAsFixed(2),
+    );
+    final noteController = TextEditingController(text: expense.note ?? '');
+    String category = expense.category;
+    DateTime expenseDate = expense.date;
+
+    final categories = [
+      'Rent',
+      'Transport / Delivery',
+      'Wages / Salaries',
+      'Electricity / Water',
+      'Repairs & Maintenance',
+      'Licenses & Permits',
+      'Miscellaneous',
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppTheme.surfaceColor,
+            title: const Text(
+              'Edit Expense',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Category',
+                    style: TextStyle(
+                      color: AppTheme.secondaryColor,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: category,
+                        isExpanded: true,
+                        dropdownColor: AppTheme.surfaceColor,
+                        style: const TextStyle(color: Colors.white),
+                        items: categories.map((cat) {
+                          return DropdownMenuItem(value: cat, child: Text(cat));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => category = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Amount (KSh)',
+                      hintText: 'e.g. 5000',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: noteController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Description / Note (Optional)',
+                      hintText: 'e.g. Warehouse monthly rent',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Date: ${_formatDate(expenseDate)}',
+                        style: const TextStyle(
+                          color: AppTheme.secondaryColor,
+                          fontSize: 13,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: expenseDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => expenseDate = picked);
+                          }
+                        },
+                        icon: const Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: AppTheme.primaryColor,
+                        ),
+                        label: const Text(
+                          'Change',
+                          style: TextStyle(color: AppTheme.primaryColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  final amount = double.tryParse(amountController.text.trim());
+                  if (amount == null || amount <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a valid expense amount.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  final updated = Expense(
+                    id: expense.id,
+                    date: expenseDate,
+                    category: category,
+                    amount: amount,
+                    note: noteController.text.trim().isEmpty
+                        ? null
+                        : noteController.text.trim(),
+                  );
+
+                  await _firestoreService.updateExpense(updated);
+                  if (!dialogCtx.mounted) return;
+                  Navigator.pop(dialogCtx);
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Expense updated successfully.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Save Expense'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _showExportDialog() async {
@@ -2179,14 +2392,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final periodName = _selectedPeriodIndex == 0
         ? 'Daily'
         : _selectedPeriodIndex == 1
-            ? 'Weekly'
-            : _selectedPeriodIndex == 2
-                ? 'Monthly'
-                : 'Custom';
+        ? 'Weekly'
+        : _selectedPeriodIndex == 2
+        ? 'Monthly'
+        : 'Custom';
 
     final csvBuffer = StringBuffer();
     csvBuffer.writeln('SHAMAMO HARDWARE POS - REPORT EXPORT');
-    csvBuffer.writeln('Period: $periodName (${_formatDate(range.start)} to ${_formatDate(range.end)})');
+    csvBuffer.writeln(
+      'Period: $periodName (${_formatDate(range.start)} to ${_formatDate(range.end)})',
+    );
     csvBuffer.writeln('Generated: ${DateTime.now().toLocal()}');
     csvBuffer.writeln('');
 
@@ -2219,7 +2434,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     csvBuffer.writeln('');
 
     csvBuffer.writeln('--- SALES TRANSACTIONS ---');
-    csvBuffer.writeln('Sale ID,Date,Staff ID,Payment Method,Items Count,Total Amount');
+    csvBuffer.writeln(
+      'Sale ID,Date,Staff ID,Payment Method,Items Count,Total Amount',
+    );
     for (final s in filteredSales) {
       csvBuffer.writeln(
         '${s.id},${s.timestamp.toIso8601String()},${s.staffId},${s.paymentMethod},${s.lineItems.length},${s.totalAmount.toStringAsFixed(2)}',
