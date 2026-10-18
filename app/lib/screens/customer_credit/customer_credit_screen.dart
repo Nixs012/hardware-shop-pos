@@ -1,0 +1,630 @@
+import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../models/customer_payment.dart';
+import '../../models/sale.dart';
+import '../../models/staff.dart';
+import '../../services/firestore_service.dart';
+import '../../utils/theme.dart';
+
+class CustomerCreditScreen extends StatefulWidget {
+  final Staff currentStaff;
+
+  const CustomerCreditScreen({super.key, required this.currentStaff});
+
+  @override
+  State<CustomerCreditScreen> createState() => _CustomerCreditScreenState();
+}
+
+class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
+  final _firestoreService = FirestoreService();
+
+  String _searchQuery = '';
+
+  String _money(double amount) {
+    final parts = amount.toStringAsFixed(2).split('.');
+    final integerPart = parts[0].replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return 'KSh $integerPart.${parts[1]}';
+  }
+
+  /// Computes outstanding balance per customer based on ALL credit sales
+  /// minus ALL repayments across all time.
+  Map<String, _CustomerBalance> _computeBalances(
+    List<Sale> sales,
+    List<CustomerPayment> payments,
+  ) {
+    final balances = <String, _CustomerBalance>{};
+
+    // Add credit sales
+    for (final sale in sales) {
+      if (sale.paymentMethod == 'Credit' &&
+          sale.customerName != null &&
+          sale.customerName!.isNotEmpty) {
+        final key = sale.customerName!;
+        final existing = balances[key] ??
+            _CustomerBalance(
+              customerName: sale.customerName!,
+              customerPhone: sale.customerPhone ?? '',
+              totalCreditSales: 0,
+              totalRepayments: 0,
+            );
+        balances[key] = existing
+            ..totalCreditSales += sale.totalAmount;
+      }
+    }
+
+    // Add repayments
+    for (final payment in payments) {
+      final key = payment.customerName;
+      final existing = balances[key] ??
+          _CustomerBalance(
+            customerName: payment.customerName,
+            customerPhone: payment.customerPhone,
+            totalCreditSales: 0,
+            totalRepayments: 0,
+          );
+      balances[key] = existing..totalRepayments += payment.amount;
+    }
+
+    return balances;
+  }
+
+  Future<void> _showRecordRepaymentDialog(_CustomerBalance customer) async {
+    final amountController = TextEditingController();
+    final noteController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text(
+          'Record Repayment from ${customer.customerName}',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Outstanding Balance: ${_money(customer.outstanding)}',
+                style: const TextStyle(
+                  color: AppTheme.secondaryColor,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Repayment Amount (KSh)',
+                  hintText: 'e.g. 2000',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: noteController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Note (Optional)',
+                  hintText: 'e.g. Partial payment',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final amount =
+                  double.tryParse(amountController.text.trim());
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid repayment amount.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+
+              final payment = CustomerPayment(
+                id: const Uuid().v4(),
+                customerName: customer.customerName,
+                customerPhone: customer.customerPhone,
+                amount: amount,
+                paymentMethod: 'Repayment',
+                timestamp: DateTime.now(),
+                staffId: widget.currentStaff.id,
+                note: noteController.text.trim().isEmpty
+                    ? null
+                    : noteController.text.trim(),
+              );
+
+              await _firestoreService.recordCustomerPayment(payment);
+              if (!dialogCtx.mounted) return;
+              Navigator.pop(dialogCtx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Repayment of ${_money(amount)} recorded for ${customer.customerName}.',
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.payment, size: 16),
+            label: const Text('Save Repayment'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surfaceColor,
+        elevation: 0,
+        title: const Text(
+          'Customer Credit (Khata)',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () => setState(() {}),
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<Sale>>(
+        stream: _firestoreService.getSalesStream(isAdmin: true),
+        builder: (context, salesSnapshot) {
+          return StreamBuilder<List<CustomerPayment>>(
+            stream: _firestoreService.getCustomerPaymentsStream(),
+            builder: (context, paymentsSnapshot) {
+              final sales = salesSnapshot.data ?? [];
+              final payments = paymentsSnapshot.data ?? [];
+
+              final balancesMap =
+                  _computeBalances(sales, payments);
+              var balances = balancesMap.values.toList();
+
+              // Filter by search query
+              if (_searchQuery.isNotEmpty) {
+                balances = balances
+                    .where((b) =>
+                        b.customerName
+                            .toLowerCase()
+                            .contains(_searchQuery.toLowerCase()) ||
+                        (b.customerPhone.contains(_searchQuery)))
+                    .toList();
+              }
+
+              // Only show customers with outstanding balance > 0
+              balances = balances
+                  .where((b) => b.outstanding > 0)
+                  .toList()
+                  ..sort((a, b) => b.outstanding.compareTo(a.outstanding));
+
+              if (salesSnapshot.connectionState == ConnectionState.waiting &&
+                  paymentsSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (salesSnapshot.hasError || paymentsSnapshot.hasError) {
+                return const Center(
+                  child: Text(
+                    'Error loading customer credit data.',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                );
+              }
+
+              return Column(
+                children: [
+                  // Search bar
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      onChanged: (val) =>
+                          setState(() => _searchQuery = val),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Search customer name or phone...',
+                        hintStyle:
+                            const TextStyle(color: AppTheme.secondaryColor),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: AppTheme.secondaryColor,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Summary card
+                  if (balances.isNotEmpty)
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: _buildSummaryCard(balances),
+                    ),
+                  const SizedBox(height: 16),
+                  // Customer list
+                  Expanded(
+                    child: balances.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No customers with outstanding credit.',
+                              style: TextStyle(
+                                color: AppTheme.secondaryColor,
+                                fontSize: 14,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16.0),
+                            itemCount: balances.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final customer = balances[index];
+                              return Card(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(
+                                    color: AppTheme.secondaryColor
+                                        .withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  leading: CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor:
+                                        Colors.orange.withValues(alpha: 0.2),
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: Colors.orangeAccent,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    customer.customerName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (customer.customerPhone.isNotEmpty)
+                                        Text(
+                                          customer.customerPhone,
+                                          style: const TextStyle(
+                                            color: AppTheme.secondaryColor,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Credit Sales: ${_money(customer.totalCreditSales)} • Repayments: ${_money(customer.totalRepayments)}',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        _money(customer.outstanding),
+                                        style: TextStyle(
+                                          color: customer.outstanding > 0
+                                              ? Colors.redAccent
+                                              : Colors.green,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Outstanding',
+                                        style: TextStyle(
+                                          color: customer.outstanding > 0
+                                              ? Colors.redAccent
+                                              : Colors.green,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () => _showCustomerDetailDialog(
+                                      context, customer, payments,
+                                      sales: sales),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(List<_CustomerBalance> balances) {
+    final totalOutstanding = balances.fold<double>(
+        0, (sum, b) => sum + b.outstanding);
+
+    return Card(
+      color: Colors.white.withValues(alpha: 0.03),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildSummaryMetric(
+              'Customers in Debt',
+              '${balances.length}',
+              Colors.redAccent,
+            ),
+            Container(
+              width: 1,
+              color: AppTheme.secondaryColor.withValues(alpha: 0.2),
+            ),
+            _buildSummaryMetric(
+              'Total Outstanding',
+              _money(totalOutstanding),
+              Colors.orange,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryMetric(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.secondaryColor,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCustomerDetailDialog(
+    BuildContext ctx,
+    _CustomerBalance customer,
+    List<CustomerPayment> allPayments, {
+    required List<Sale> sales,
+  }) async {
+    final customerPayments = allPayments
+        .where((p) => p.customerName == customer.customerName)
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    final customerSales = sales
+        .where((s) => s.customerName == customer.customerName)
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    showDialog(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              customer.customerName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (customer.customerPhone.isNotEmpty)
+              Text(
+                customer.customerPhone,
+                style: const TextStyle(
+                  color: AppTheme.secondaryColor,
+                  fontSize: 13,
+                ),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'Outstanding: ${_money(customer.outstanding)}',
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogCtx);
+                  _showRecordRepaymentDialog(customer);
+                },
+                icon: const Icon(Icons.payment, size: 16),
+                label: const Text('Record Repayment'),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Credit Sales',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (customerSales.isEmpty)
+                const Text(
+                  'No credit sales found.',
+                  style: TextStyle(color: AppTheme.secondaryColor, fontSize: 11),
+                )
+              else
+                ...customerSales.take(5).map((sale) {
+                  return ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                    title: Text(
+                      '${sale.lineItems.length} item(s) • ${_money(sale.totalAmount)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${sale.timestamp.toLocal()}'.split('.').first,
+                      style: const TextStyle(
+                        color: AppTheme.secondaryColor,
+                        fontSize: 10,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.receipt_long,
+                      color: AppTheme.secondaryColor,
+                      size: 14,
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+              const Text(
+                'Repayments',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (customerPayments.isEmpty)
+                const Text(
+                  'No repayments recorded.',
+                  style: TextStyle(color: AppTheme.secondaryColor, fontSize: 11),
+                )
+              else
+                ...customerPayments.take(5).map((payment) {
+                  return ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                    leading: const Icon(
+                      Icons.arrow_downward,
+                      color: Colors.green,
+                      size: 14,
+                    ),
+                    title: Text(
+                      _money(payment.amount),
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${payment.timestamp.toLocal()}'.split('.').first,
+                      style: const TextStyle(
+                        color: AppTheme.secondaryColor,
+                        fontSize: 10,
+                      ),
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerBalance {
+  final String customerName;
+  final String customerPhone;
+  double totalCreditSales;
+  double totalRepayments;
+
+  _CustomerBalance({
+    required this.customerName,
+    required this.customerPhone,
+    required this.totalCreditSales,
+    required this.totalRepayments,
+  });
+
+  double get outstanding => totalCreditSales - totalRepayments;
+}

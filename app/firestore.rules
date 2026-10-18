@@ -41,16 +41,16 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Credit repayments are tracked in customer_payments. Sales are never edited.
+    // Credit repayments are tracked in customer_payments. Admin-only read; cashiers create-only.
     match /customer_payments/{paymentId} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin();
       allow create: if isAuthenticated();
       allow update, delete: if false;
     }
 
+    // Operating expenses: admin-only read and write
     match /expenses/{expenseId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     match /{document=**} {

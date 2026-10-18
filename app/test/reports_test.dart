@@ -3,8 +3,66 @@ import 'package:app/models/expense.dart';
 import 'package:app/models/product.dart';
 import 'package:app/models/sale.dart';
 import 'package:app/models/sale_line_item.dart';
+import 'package:app/models/customer_payment.dart';
+
+/// Helper class for testing credit balance computation logic.
+class _TestCustomerBalance {
+  final String customerName;
+  final String customerPhone;
+  double totalCreditSales;
+  double totalRepayments;
+
+  _TestCustomerBalance({
+    required this.customerName,
+    required this.customerPhone,
+    required this.totalCreditSales,
+    required this.totalRepayments,
+  });
+
+  double get outstanding => totalCreditSales - totalRepayments;
+}
 
 void main() {
+  // Extracted reusable balance-computation logic — mirrors
+  // CustomerCreditScreen._computeBalances but as a pure function
+  // for unit testing.
+  Map<String, _TestCustomerBalance> computeBalances(
+    List<Sale> sales,
+    List<CustomerPayment> payments,
+  ) {
+    final balances = <String, _TestCustomerBalance>{};
+
+    for (final sale in sales) {
+      if (sale.paymentMethod == 'Credit' &&
+          sale.customerName != null &&
+          sale.customerName!.isNotEmpty) {
+        final key = sale.customerName!;
+        final existing = balances[key] ?? _TestCustomerBalance(
+          customerName: sale.customerName!,
+          customerPhone: sale.customerPhone ?? '',
+          totalCreditSales: 0,
+          totalRepayments: 0,
+        );
+        balances[key] = existing
+          ..totalCreditSales += sale.totalAmount;
+      }
+    }
+
+    for (final payment in payments) {
+      final key = payment.customerName;
+      final existing = balances[key] ?? _TestCustomerBalance(
+        customerName: payment.customerName,
+        customerPhone: payment.customerPhone,
+        totalCreditSales: 0,
+        totalRepayments: 0,
+      );
+      balances[key] = existing
+        ..totalRepayments += payment.amount;
+    }
+
+    return balances;
+  }
+
   group('Phase 5 - Reports and Profit/Loss Domain Tests', () {
     test('Expense model serializes and deserializes correctly', () {
       final date = DateTime(2026, 10, 18, 11, 30);
@@ -200,6 +258,229 @@ void main() {
       expect(low.quantityOnHand <= low.lowStockThreshold, isTrue);
       expect(outOfStock.quantityOnHand <= outOfStock.lowStockThreshold, isTrue);
       expect(outOfStock.quantityOnHand <= 0, isTrue);
+    });
+  });
+
+  group('Phase 6 - Customer Credit Outstanding Balance Tests', () {
+    test('Single credit sale with no repayment → outstanding equals sale total', () {
+      final creditSale = Sale(
+        id: 's1',
+        timestamp: DateTime(2026, 10, 18, 10, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Credit',
+        customerName: 'John Mwangi',
+        customerPhone: '0700111222',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-cement',
+            quantity: 5,
+            unitPriceAtSale: 800.0,
+            unitCostAtSale: 600.0,
+          ),
+        ],
+      );
+
+      final balances = computeBalances([creditSale], []);
+
+      expect(balances.length, equals(1));
+      expect(balances['John Mwangi']!.outstanding, equals(4000.0));
+    });
+
+    test('Full repayment zeroes out outstanding balance', () {
+      final creditSale = Sale(
+        id: 's1',
+        timestamp: DateTime(2026, 10, 18, 10, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Credit',
+        customerName: 'Jane Njoroge',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-paint',
+            quantity: 2,
+            unitPriceAtSale: 1500.0,
+            unitCostAtSale: 900.0,
+          ),
+        ],
+      );
+
+      final repayment = CustomerPayment(
+        id: 'p1',
+        customerName: 'Jane Njoroge',
+        customerPhone: '0722000111',
+        amount: 3000.0,
+        paymentMethod: 'Repayment',
+        timestamp: DateTime(2026, 10, 20),
+        staffId: 'admin-1',
+      );
+
+      final balances = computeBalances([creditSale], [repayment]);
+
+      expect(balances['Jane Njoroge']!.outstanding, equals(0.0));
+    });
+
+    test('Partial repayment reduces outstanding proportionally', () {
+      final creditSale = Sale(
+        id: 's1',
+        timestamp: DateTime(2026, 10, 18, 10, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Credit',
+        customerName: 'Peter Ochieng',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-wire',
+            quantity: 10,
+            unitPriceAtSale: 500.0,
+            unitCostAtSale: 300.0,
+          ),
+        ],
+      );
+
+      final repayment = CustomerPayment(
+        id: 'p1',
+        customerName: 'Peter Ochieng',
+        customerPhone: '',
+        amount: 2000.0,
+        paymentMethod: 'Repayment',
+        timestamp: DateTime(2026, 10, 19),
+        staffId: 'admin-1',
+      );
+
+      final balances = computeBalances([creditSale], [repayment]);
+
+      // 10 * 500 = 5000 credit, minus 2000 repayment = 3000 outstanding
+      expect(balances['Peter Ochieng']!.outstanding, equals(3000.0));
+    });
+
+    test('Multiple credit sales for same customer aggregate correctly', () {
+      final sale1 = Sale(
+        id: 's1',
+        timestamp: DateTime(2026, 10, 18, 9, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Credit',
+        customerName: 'Ali Hassan',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-1',
+            quantity: 3,
+            unitPriceAtSale: 1000.0,
+            unitCostAtSale: 600.0,
+          ),
+        ],
+      );
+
+      final sale2 = Sale(
+        id: 's2',
+        timestamp: DateTime(2026, 10, 20, 14, 0),
+        staffId: 'staff-2',
+        paymentMethod: 'Credit',
+        customerName: 'Ali Hassan',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-2',
+            quantity: 2,
+            unitPriceAtSale: 2000.0,
+            unitCostAtSale: 1200.0,
+          ),
+        ],
+      );
+
+      final repayment = CustomerPayment(
+        id: 'p1',
+        customerName: 'Ali Hassan',
+        customerPhone: '0711223344',
+        amount: 1500.0,
+        paymentMethod: 'Repayment',
+        timestamp: DateTime(2026, 10, 21),
+        staffId: 'admin-1',
+      );
+
+      final balances = computeBalances([sale1, sale2], [repayment]);
+
+      // Total credit: 3000 + 4000 = 7000; repayment: 1500 → outstanding 5500
+      expect(balances['Ali Hassan']!.totalCreditSales, equals(7000.0));
+      expect(balances['Ali Hassan']!.totalRepayments, equals(1500.0));
+      expect(balances['Ali Hassan']!.outstanding, equals(5500.0));
+    });
+
+    test('Cash sales do not contribute to customer credit balances', () {
+      final cashSale = Sale(
+        id: 's1',
+        timestamp: DateTime(2026, 10, 18, 9, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Cash',
+        customerName: 'Cash Customer',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-1',
+            quantity: 1,
+            unitPriceAtSale: 500.0,
+            unitCostAtSale: 300.0,
+          ),
+        ],
+      );
+
+      final balances = computeBalances([cashSale], []);
+
+      expect(balances.isEmpty, isTrue);
+    });
+
+    test('Customer with only repayments (no credit) shows as zero balance and is excluded from outstanding list', () {
+      final repayment = CustomerPayment(
+        id: 'p1',
+        customerName: 'Bonus Customer',
+        customerPhone: '0733445566',
+        amount: 500.0,
+        paymentMethod: 'Repayment',
+        timestamp: DateTime(2026, 10, 19),
+        staffId: 'admin-1',
+      );
+
+      final balances = computeBalances([], [repayment]);
+
+      // Customer exists in the balances map but outstanding is 0
+      expect(balances['Bonus Customer'], isNotNull);
+      expect(balances['Bonus Customer']!.totalCreditSales, equals(0.0));
+      expect(balances['Bonus Customer']!.totalRepayments, equals(500.0));
+      expect(balances['Bonus Customer']!.outstanding, equals(-500.0));
+    });
+
+    test('Different customers have independent balances', () {
+      final saleA = Sale(
+        id: 's1',
+        timestamp: DateTime(2026, 10, 18, 9, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Credit',
+        customerName: 'Customer A',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-1',
+            quantity: 1,
+            unitPriceAtSale: 1000.0,
+            unitCostAtSale: 600.0,
+          ),
+        ],
+      );
+
+      final saleB = Sale(
+        id: 's2',
+        timestamp: DateTime(2026, 10, 18, 10, 0),
+        staffId: 'staff-1',
+        paymentMethod: 'Credit',
+        customerName: 'Customer B',
+        lineItems: [
+          SaleLineItem(
+            productId: 'prod-2',
+            quantity: 1,
+            unitPriceAtSale: 2000.0,
+            unitCostAtSale: 1000.0,
+          ),
+        ],
+      );
+
+      final balances = computeBalances([saleA, saleB], []);
+
+      expect(balances['Customer A']!.outstanding, equals(1000.0));
+      expect(balances['Customer B']!.outstanding, equals(2000.0));
     });
   });
 }

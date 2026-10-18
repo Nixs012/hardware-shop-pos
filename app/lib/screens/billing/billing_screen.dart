@@ -168,6 +168,16 @@ class _BillingScreenState extends State<BillingScreen> {
         return;
       }
 
+      String? customerName;
+      String? customerPhone;
+
+      if (paymentMethod == 'Credit') {
+        final customerInfo = await _showCustomerCreditDialog();
+        if (customerInfo == null) return;
+        customerName = customerInfo['name'];
+        customerPhone = customerInfo['phone'];
+      }
+
       bool hasOversold = false;
       for (final item in _cart.values) {
         try {
@@ -186,6 +196,8 @@ class _BillingScreenState extends State<BillingScreen> {
         staffId: widget.currentStaff.id,
         paymentMethod: paymentMethod,
         lineItems: _cart.values.toList(),
+        customerName: customerName,
+        customerPhone: customerPhone,
       );
 
       final bool isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
@@ -330,6 +342,73 @@ class _BillingScreenState extends State<BillingScreen> {
         );
       }
     }
+  }
+
+  Future<Map<String, String>?> _showCustomerCreditDialog() async {
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: AppTheme.backgroundColor,
+          title: const Text(
+            'Enter Customer Details (Credit)',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Customer Name',
+                    hintText: 'e.g. John Kamau',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number (Optional)',
+                    hintText: 'e.g. 0712345678',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isEmpty) return;
+                Navigator.pop(
+                  dialogCtx,
+                  {
+                    'name': name,
+                    'phone': phoneController.text.trim(),
+                  },
+                );
+              },
+              child: const Text('Confirm Credit Sale'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _paymentButton(BuildContext context, String method) {

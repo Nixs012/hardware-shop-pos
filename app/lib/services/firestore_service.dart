@@ -211,10 +211,16 @@ class FirestoreService {
   // Sales are strictly immutable. Credit repayments are recorded in customer_payments.
 
   Future<void> recordCustomerPayment(CustomerPayment payment) {
-    return _db
-        .collection('customer_payments')
-        .doc(payment.id)
-        .set(payment.toMap());
+    if (SyncService.instance.isOnline) {
+      // Online: write directly to Firestore
+      return _db
+          .collection('customer_payments')
+          .doc(payment.id)
+          .set(payment.toMap());
+    } else {
+      // Offline: queue for sync when connectivity is restored
+      return SyncService.instance.queuePayment(payment);
+    }
   }
 
   Stream<List<CustomerPayment>> getCustomerPaymentsStream() {
@@ -245,6 +251,13 @@ class FirestoreService {
 
   Future<void> addExpense(Expense expense) {
     return _db.collection('expenses').doc(expense.id).set(expense.toMap());
+  }
+
+  Future<void> updateExpense(Expense expense) {
+    return _db
+        .collection('expenses')
+        .doc(expense.id)
+        .update(expense.toMap());
   }
 
   Future<void> deleteExpense(String expenseId) {

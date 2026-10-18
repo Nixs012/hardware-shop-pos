@@ -4,8 +4,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../models/customer_payment.dart';
 import '../models/failed_sale.dart';
 import '../models/product.dart';
+import '../models/queued_payment.dart';
 import '../models/queued_sale.dart';
 import '../models/sale.dart';
 
@@ -49,22 +51,30 @@ abstract class SyncStorage {
   Future<List<Product>> getCachedProducts();
   Future<void> updateCachedProductStock(String productId, double delta);
   Future<void> clearCachedCostData();
+
+  // Customer Payment sync
+  Future<void> savePendingPayment(QueuedPayment payment);
+  Future<void> removePendingPayment(String paymentId);
+  Future<List<QueuedPayment>> getPendingPayments();
 }
 
 class HiveSyncStorage implements SyncStorage {
   static const String pendingBoxName = 'pending_sales';
   static const String needsReviewBoxName = 'needs_review_sales';
   static const String productsBoxName = 'cached_products';
+  static const String pendingPaymentsBoxName = 'pending_payments';
 
   late Box<Map> _pendingBox;
   late Box<Map> _needsReviewBox;
   late Box<Map> _productsBox;
+  late Box<Map> _pendingPaymentsBox;
 
   @override
   Future<void> init() async {
     _pendingBox = await Hive.openBox<Map>(pendingBoxName);
     _needsReviewBox = await Hive.openBox<Map>(needsReviewBoxName);
     _productsBox = await Hive.openBox<Map>(productsBoxName);
+    _pendingPaymentsBox = await Hive.openBox<Map>(pendingPaymentsBoxName);
   }
 
   @override
@@ -179,12 +189,40 @@ class HiveSyncStorage implements SyncStorage {
       }
     }
   }
+
+  // --- Customer Payment sync (HiveSyncStorage) ---
+
+  @override
+  Future<void> savePendingPayment(QueuedPayment payment) async {
+    await _pendingPaymentsBox.put(payment.payment.id, payment.toMap());
+  }
+
+  @override
+  Future<void> removePendingPayment(String paymentId) async {
+    await _pendingPaymentsBox.delete(paymentId);
+  }
+
+  @override
+  Future<List<QueuedPayment>> getPendingPayments() async {
+    final list = <QueuedPayment>[];
+    for (final raw in _pendingPaymentsBox.values) {
+      try {
+        final map = Map<String, dynamic>.from(raw);
+        list.add(QueuedPayment.fromMap(map));
+      } catch (e) {
+        debugPrint('Error parsing pending payment: $e');
+      }
+    }
+    list.sort((a, b) => a.queuedAt.compareTo(b.queuedAt));
+    return list;
+  }
 }
 
 class MemorySyncStorage implements SyncStorage {
   final Map<String, Map<String, dynamic>> _pending = {};
   final Map<String, Map<String, dynamic>> _needsReview = {};
   final Map<String, Map<String, dynamic>> _products = {};
+  final Map<String, Map<String, dynamic>> _pendingPayments = {};
 
   @override
   Future<void> init() async {}
@@ -264,6 +302,27 @@ class MemorySyncStorage implements SyncStorage {
       m.remove('cost_price');
       m.remove('cost_price_estimated');
     }
+  }
+
+  // --- Customer Payment sync (MemorySyncStorage) ---
+
+  @override
+  Future<void> savePendingPayment(QueuedPayment payment) async {
+    _pendingPayments[payment.payment.id] = payment.toMap();
+  }
+
+  @override
+  Future<void> removePendingPayment(String paymentId) async {
+    _pendingPayments.remove(paymentId);
+  }
+
+  @override
+  Future<List<QueuedPayment>> getPendingPayments() async {
+    final list = _pendingPayments.values
+        .map((m) => QueuedPayment.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+    list.sort((a, b) => a.queuedAt.compareTo(b.queuedAt));
+    return list;
   }
 }
 
@@ -426,19 +485,33 @@ class SyncService {
     _notifyStatus();
 
     try {
+      // Drain pending sales first
+      await _drainSales();
+      // Then drain pending customer payments
+      await _drainPayments();
+    } finally {
+      _isSyncing = false;
+      _notifyStatus();
+    }
+  }
+
+  Future<void> _drainSales() async {
+    _isSyncing = true;
+    _notifyStatus();
+
+    try {
       final pending = await _storage.getPendingSales();
       final now = DateTime.now();
 
       for (final item in pending) {
         if (!_isOnline) {
-          break; // Stop draining when offline
+          break;
         }
 
-        // Check exponential backoff window
         if (item.retryCount > 0 && item.lastAttemptAt != null) {
           final backoff = calculateBackoff(item.retryCount);
           if (now.difference(item.lastAttemptAt!) < backoff) {
-            continue; // Skip until backoff elapsed
+            continue;
           }
         }
 
@@ -449,14 +522,12 @@ class SyncService {
             await _defaultFirestoreSync(item);
           }
 
-          // Successfully synced! Remove from pending
           await _storage.removePending(item.sale.id);
         } catch (error) {
           final nextRetry = item.retryCount + 1;
           final lastError = error.toString();
 
           if (nextRetry >= maxRetries) {
-            // Exceeded retries: Route to Needs Review for admins and NEVER delete
             final reviewItem = item.copyWith(
               retryCount: nextRetry,
               lastAttemptAt: DateTime.now(),
@@ -468,7 +539,6 @@ class SyncService {
               'Sale ${item.sale.id} moved to Needs Review after $nextRetry retries.',
             );
           } else {
-            // Update retry count and backoff timestamp
             final updated = item.copyWith(
               retryCount: nextRetry,
               lastAttemptAt: DateTime.now(),
@@ -480,8 +550,47 @@ class SyncService {
       }
     } finally {
       _pendingCount = await _storage.getPendingCount();
-      _isSyncing = false;
       _notifyStatus();
+    }
+  }
+
+  Future<void> _drainPayments() async {
+    final pending = await _storage.getPendingPayments();
+    final now = DateTime.now();
+
+    for (final item in pending) {
+      if (!_isOnline) {
+        break;
+      }
+
+      if (item.retryCount > 0 && item.lastAttemptAt != null) {
+        final backoff = calculateBackoff(item.retryCount);
+        if (now.difference(item.lastAttemptAt!) < backoff) {
+          continue;
+        }
+      }
+
+      try {
+        await _syncPayment(item);
+        await _storage.removePendingPayment(item.payment.id);
+      } catch (error) {
+        final nextRetry = item.retryCount + 1;
+        final lastError = error.toString();
+
+        if (nextRetry >= maxRetries) {
+          // For payments, just keep retrying indefinitely - log the error
+          debugPrint(
+            'Payment ${item.payment.id} failed after $nextRetry retries: $lastError',
+          );
+        } else {
+          final updated = item.copyWith(
+            retryCount: nextRetry,
+            lastAttemptAt: DateTime.now(),
+            lastError: lastError,
+          );
+          await _storage.savePendingPayment(updated);
+        }
+      }
     }
   }
 
@@ -577,6 +686,33 @@ class SyncService {
 
   Future<List<Product>> getCachedProducts() async {
     return _storage.getCachedProducts();
+  }
+
+  // --- Customer Payment sync ---
+
+  Future<void> queuePayment(CustomerPayment payment) async {
+    final queued = QueuedPayment(
+      payment: payment,
+      queuedAt: DateTime.now(),
+    );
+    await _storage.savePendingPayment(queued);
+    if (_isOnline) {
+      unawaited(drainQueue());
+    }
+  }
+
+  Future<void> _syncPayment(QueuedPayment queuedPayment) async {
+    final db = FirebaseFirestore.instance;
+    // Idempotency check
+    final existing = await db
+        .collection('customer_payments')
+        .doc(queuedPayment.payment.id)
+        .get();
+    if (existing.exists) return;
+    await db
+        .collection('customer_payments')
+        .doc(queuedPayment.payment.id)
+        .set(queuedPayment.payment.toMap());
   }
 
   void dispose() {

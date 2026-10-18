@@ -4,9 +4,117 @@ import 'billing/billing_screen.dart';
 import 'products/products_screen.dart';
 import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
+import 'customer_credit/customer_credit_screen.dart';
 import '../models/staff.dart';
 import '../utils/theme.dart';
 import '../widgets/sync_status_indicator.dart';
+
+/// Nav items — shown on mobile bottom nav and desktop sidebar.
+/// Admin-only items (Expenses, Customer Credit) are injected after index 2
+/// when the current staff member is an admin.
+List<NavItem> buildNavItems(bool isAdmin) {
+  final baseItems = [
+    NavItem(
+      title: 'Billing',
+      subtitle: 'POS Register',
+      icon: Icons.point_of_sale,
+    ),
+    NavItem(
+      title: 'Products',
+      subtitle: 'Inventory Management',
+      icon: Icons.inventory_2,
+    ),
+    NavItem(
+      title: 'Reports',
+      subtitle: 'Sales & Analytics',
+      icon: Icons.bar_chart,
+    ),
+    NavItem(
+      title: 'Settings',
+      subtitle: 'Staff & Setup',
+      icon: Icons.settings,
+    ),
+  ];
+
+  if (!isAdmin) return baseItems;
+
+  // Admin-only items inserted before Settings
+  return [
+    ...baseItems.sublist(0, 3),
+    NavItem(
+      title: 'Customer Credit',
+      subtitle: 'Khata Management',
+      icon: Icons.account_balance,
+    ),
+    NavItem(
+      title: 'Expenses',
+      subtitle: 'Operating Expenses',
+      icon: Icons.receipt_long,
+    ),
+    baseItems.last, // Settings
+  ];
+}
+
+/// Builds the screen widgets matching the nav item order from [buildNavItems].
+List<Widget> buildScreens(Staff currentStaff, bool isAdmin) {
+  final List<Widget> screens = [
+    BillingScreen(currentStaff: currentStaff),
+    ProductsScreen(currentStaff: currentStaff),
+    ReportsScreen(currentStaff: currentStaff),
+  ];
+
+  if (isAdmin) {
+    screens.add(CustomerCreditScreen(currentStaff: currentStaff));
+    screens.add(AdminPlaceholderScreen(
+      title: 'Expenses',
+      icon: Icons.receipt_long,
+    ));
+  }
+
+  screens.add(SettingsScreen(currentStaff: currentStaff));
+  return screens;
+}
+
+/// Lightweight placeholder for screens that are wired into nav but
+/// implemented within another screen (Expenses lives in the Reports → P&L tab).
+class AdminPlaceholderScreen extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const AdminPlaceholderScreen({super.key, required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        backgroundColor: AppTheme.surfaceColor,
+        elevation: 0,
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+      ),
+  body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 64, color: AppTheme.secondaryColor),
+            const SizedBox(height: 24),
+            Text(
+              '$title management is available in the Reports → Profit & Loss tab.',
+              style: const TextStyle(
+                color: AppTheme.secondaryColor,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class MainLayout extends StatefulWidget {
   final Staff currentStaff;
@@ -18,48 +126,24 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  int _currentIndex = 0;
-
+  late final bool _isAdmin;
   late final List<Widget> _screens;
+  int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      BillingScreen(currentStaff: widget.currentStaff),
-      ProductsScreen(currentStaff: widget.currentStaff),
-      ReportsScreen(currentStaff: widget.currentStaff),
-      SettingsScreen(currentStaff: widget.currentStaff),
-    ];
+    _isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
+    _screens = buildScreens(widget.currentStaff, _isAdmin);
   }
 
-  static const _navItems = [
-    _NavItem(
-      title: 'Billing',
-      subtitle: 'POS Register',
-      icon: Icons.point_of_sale,
-    ),
-    _NavItem(
-      title: 'Products',
-      subtitle: 'Inventory Management',
-      icon: Icons.inventory_2,
-    ),
-    _NavItem(
-      title: 'Reports',
-      subtitle: 'Sales & Analytics',
-      icon: Icons.bar_chart,
-    ),
-    _NavItem(
-      title: 'Settings',
-      subtitle: 'Staff & Setup',
-      icon: Icons.settings,
-    ),
-  ];
+  static List<NavItem> _navItems(bool isAdmin) => buildNavItems(isAdmin);
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final navItems = _navItems(_isAdmin);
         final isDesktop = constraints.maxWidth >= 800;
 
         if (isDesktop) {
@@ -67,7 +151,7 @@ class _MainLayoutState extends State<MainLayout> {
             backgroundColor: AppTheme.backgroundColor,
             body: Row(
               children: [
-                _buildDesktopSidebar(),
+                _buildDesktopSidebar(navItems),
                 VerticalDivider(
                   width: 1,
                   thickness: 1,
@@ -76,7 +160,7 @@ class _MainLayoutState extends State<MainLayout> {
                 Expanded(
                   child: Column(
                     children: [
-                      _buildDesktopHeader(),
+                      _buildDesktopHeader(navItems),
                       Expanded(child: _screens[_currentIndex]),
                     ],
                   ),
@@ -112,23 +196,12 @@ class _MainLayoutState extends State<MainLayout> {
               });
             },
             type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.point_of_sale),
-                label: 'Billing',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.inventory_2),
-                label: 'Products',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart),
-                label: 'Reports',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                label: 'Settings',
-              ),
+            items: [
+              for (final item in navItems)
+                BottomNavigationBarItem(
+                  icon: Icon(item.icon),
+                  label: item.title,
+                ),
             ],
           ),
         );
@@ -136,7 +209,7 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildDesktopSidebar() {
+  Widget _buildDesktopSidebar(List<NavItem> navItems) {
     return Container(
       width: 250,
       color: Colors.black.withValues(alpha: 0.2),
@@ -248,10 +321,10 @@ class _MainLayoutState extends State<MainLayout> {
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _navItems.length,
+                itemCount: navItems.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 4),
                 itemBuilder: (context, index) {
-                  final item = _navItems[index];
+                  final item = navItems[index];
                   final isSelected = _currentIndex == index;
 
                   return InkWell(
@@ -349,8 +422,8 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildDesktopHeader() {
-    final current = _navItems[_currentIndex];
+  Widget _buildDesktopHeader(List<NavItem> navItems) {
+    final current = navItems[_currentIndex];
 
     return Container(
       height: 60,
@@ -405,12 +478,12 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-class _NavItem {
+class NavItem {
   final String title;
   final String subtitle;
   final IconData icon;
 
-  const _NavItem({
+  const NavItem({
     required this.title,
     required this.subtitle,
     required this.icon,
