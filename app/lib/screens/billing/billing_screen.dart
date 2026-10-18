@@ -16,15 +16,16 @@ import '../../utils/theme.dart';
 
 class BillingScreen extends StatefulWidget {
   final Staff currentStaff;
+  final FirestoreService? firestoreService;
 
-  const BillingScreen({super.key, required this.currentStaff});
+  const BillingScreen({super.key, required this.currentStaff, this.firestoreService});
 
   @override
   State<BillingScreen> createState() => _BillingScreenState();
 }
 
 class _BillingScreenState extends State<BillingScreen> {
-  final _firestoreService = FirestoreService();
+  late final FirestoreService _firestoreService;
   final _printerService = PrinterService();
   final _searchController = TextEditingController();
 
@@ -38,6 +39,7 @@ class _BillingScreenState extends State<BillingScreen> {
   @override
   void initState() {
     super.initState();
+    _firestoreService = widget.firestoreService ?? FirestoreServiceImpl();
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.toLowerCase();

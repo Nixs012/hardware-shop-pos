@@ -9,15 +9,19 @@ import '../../utils/theme.dart';
 
 class CustomerCreditScreen extends StatefulWidget {
   final Staff currentStaff;
+  final FirestoreService? firestoreService;
 
-  const CustomerCreditScreen({super.key, required this.currentStaff});
+  const CustomerCreditScreen({super.key, required this.currentStaff, this.firestoreService});
 
   @override
   State<CustomerCreditScreen> createState() => _CustomerCreditScreenState();
 }
 
 class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
-  final _firestoreService = FirestoreService();
+  FirestoreService? _injectedFirestoreService;
+
+  FirestoreService get _firestoreService =>
+      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
 
   String _searchQuery = '';
 

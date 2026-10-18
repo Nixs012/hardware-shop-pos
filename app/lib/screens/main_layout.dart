@@ -10,7 +10,7 @@ import '../utils/theme.dart';
 import '../widgets/sync_status_indicator.dart';
 
 /// Nav items — shown on mobile bottom nav and desktop sidebar.
-/// Admin-only items (Expenses, Customer Credit) are injected after index 2
+/// Admin-only items (Customer Credit) are injected after index 2
 /// when the current staff member is an admin.
 List<NavItem> buildNavItems(bool isAdmin) {
   final baseItems = [
@@ -38,18 +38,13 @@ List<NavItem> buildNavItems(bool isAdmin) {
 
   if (!isAdmin) return baseItems;
 
-  // Admin-only items inserted before Settings
+  // Admin-only items injected before Settings
   return [
     ...baseItems.sublist(0, 3),
     NavItem(
-      title: 'Customer Credit',
+      title: 'Credit',
       subtitle: 'Khata Management',
       icon: Icons.account_balance,
-    ),
-    NavItem(
-      title: 'Expenses',
-      subtitle: 'Operating Expenses',
-      icon: Icons.receipt_long,
     ),
     baseItems.last, // Settings
   ];
@@ -65,55 +60,10 @@ List<Widget> buildScreens(Staff currentStaff, bool isAdmin) {
 
   if (isAdmin) {
     screens.add(CustomerCreditScreen(currentStaff: currentStaff));
-    screens.add(AdminPlaceholderScreen(
-      title: 'Expenses',
-      icon: Icons.receipt_long,
-    ));
   }
 
   screens.add(SettingsScreen(currentStaff: currentStaff));
   return screens;
-}
-
-/// Lightweight placeholder for screens that are wired into nav but
-/// implemented within another screen (Expenses lives in the Reports → P&L tab).
-class AdminPlaceholderScreen extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const AdminPlaceholderScreen({super.key, required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surfaceColor,
-        elevation: 0,
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-      ),
-  body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 64, color: AppTheme.secondaryColor),
-            const SizedBox(height: 24),
-            Text(
-              '$title management is available in the Reports → Profit & Loss tab.',
-              style: const TextStyle(
-                color: AppTheme.secondaryColor,
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class MainLayout extends StatefulWidget {

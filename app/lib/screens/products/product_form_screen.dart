@@ -6,8 +6,9 @@ import '../../utils/theme.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final Product? existingProduct;
+  final FirestoreService? firestoreService;
 
-  const ProductFormScreen({super.key, this.existingProduct});
+  const ProductFormScreen({super.key, this.existingProduct, this.firestoreService});
 
   @override
   State<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -15,7 +16,10 @@ class ProductFormScreen extends StatefulWidget {
 
 class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _firestoreService = FirestoreService();
+  FirestoreService? _injectedFirestoreService;
+
+  FirestoreService get _firestoreService =>
+      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
 
   late final TextEditingController _nameController;
   late final TextEditingController _skuController;

@@ -13,21 +13,25 @@ import '../../utils/theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Staff currentStaff;
+  final FirestoreService? firestoreService;
 
-  const SettingsScreen({super.key, required this.currentStaff});
+  const SettingsScreen({super.key, required this.currentStaff, this.firestoreService});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _firestoreService = FirestoreService();
+  FirestoreService? _injectedFirestoreService;
   final _printerService = PrinterService();
   final _shopNameController = TextEditingController();
   final _addressPhoneController = TextEditingController();
   final _footerController = TextEditingController();
   late Future<List<FailedSaleRecord>> _failedSalesFuture;
   PaperSize _paperSize = PaperSize.mm58;
+
+  FirestoreService get _firestoreService =>
+      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
   bool _printerConnected = false;
   bool _scanning = false;
 

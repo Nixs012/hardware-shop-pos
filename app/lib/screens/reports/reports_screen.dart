@@ -13,15 +13,19 @@ import '../../utils/theme.dart';
 
 class ReportsScreen extends StatefulWidget {
   final Staff currentStaff;
+  final FirestoreService? firestoreService;
 
-  const ReportsScreen({super.key, required this.currentStaff});
+  const ReportsScreen({super.key, required this.currentStaff, this.firestoreService});
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  final _firestoreService = FirestoreService();
+  FirestoreService? _injectedFirestoreService;
+
+  FirestoreService get _firestoreService =>
+      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
 
   // 0 = Daily, 1 = Weekly, 2 = Monthly, 3 = Custom
   int _selectedPeriodIndex = 0;
@@ -118,11 +122,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
               onPressed: _showExportDialog,
             ),
           ],
-          bottom: TabBar(
+           bottom: TabBar(
             indicatorColor: AppTheme.primaryColor,
             labelColor: Colors.white,
             unselectedLabelColor: AppTheme.secondaryColor,
-            isScrollable: !_isAdmin,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               const Tab(text: 'Sales Summary'),
               if (_isAdmin) const Tab(text: 'Profit & Loss'),
@@ -733,11 +738,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(
-                  '${expenses.length} record(s)',
-                  style: const TextStyle(
-                    color: AppTheme.secondaryColor,
-                    fontSize: 12,
+                Flexible(
+                  child: Text(
+                    '${expenses.length} record(s)',
+                    style: const TextStyle(
+                      color: AppTheme.secondaryColor,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -782,7 +792,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      '${_formatDate(exp.date)}${exp.note != null && exp.note!.isNotEmpty ? ' • ${exp.note}' : ''}',
+                      _formatDate(exp.date),
                       style: const TextStyle(
                         color: AppTheme.secondaryColor,
                         fontSize: 12,
@@ -799,6 +809,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             fontSize: 14,
                           ),
                         ),
+                        const SizedBox(width: 4),
                         IconButton(
                           icon: const Icon(
                             Icons.edit_outlined,
@@ -909,50 +920,49 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 children: [
                   _buildFilterBar(),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Product Ranking',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                  const Text(
+                    'Product Ranking',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SegmentedButton<String>(
+                      style: ButtonStyle(
+                        backgroundColor:
+                            WidgetStateProperty.resolveWith<Color?>((states) {
+                              if (states.contains(WidgetState.selected)) {
+                                return AppTheme.primaryColor;
+                              }
+                              return Colors.white.withValues(alpha: 0.05);
+                            }),
+                        foregroundColor: WidgetStateProperty.all(
+                          Colors.white,
                         ),
                       ),
-                      SegmentedButton<String>(
-                        style: ButtonStyle(
-                          backgroundColor:
-                              WidgetStateProperty.resolveWith<Color?>((states) {
-                                if (states.contains(WidgetState.selected)) {
-                                  return AppTheme.primaryColor;
-                                }
-                                return Colors.white.withValues(alpha: 0.05);
-                              }),
-                          foregroundColor: WidgetStateProperty.all(
-                            Colors.white,
-                          ),
+                      segments: const [
+                        ButtonSegment<String>(
+                          value: 'revenue',
+                          label: Text('By Revenue'),
                         ),
-                        segments: const [
-                          ButtonSegment<String>(
-                            value: 'revenue',
-                            label: Text('By Revenue'),
-                          ),
-                          ButtonSegment<String>(
-                            value: 'quantity',
-                            label: Text('By Volume'),
-                          ),
-                          ButtonSegment<String>(
-                            value: 'profit',
-                            label: Text('By Profit'),
-                          ),
-                        ],
-                        selected: {_sellersSortBy},
-                        onSelectionChanged: (set) {
-                          setState(() => _sellersSortBy = set.first);
-                        },
-                      ),
-                    ],
+                        ButtonSegment<String>(
+                          value: 'quantity',
+                          label: Text('By Volume'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'profit',
+                          label: Text('By Profit'),
+                        ),
+                      ],
+                      selected: {_sellersSortBy},
+                      onSelectionChanged: (set) {
+                        setState(() => _sellersSortBy = set.first);
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
                   if (performanceList.isEmpty)
@@ -990,6 +1000,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               : 0.0;
 
                           return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                              vertical: 4.0,
+                            ),
                             leading: CircleAvatar(
                               radius: 16,
                               backgroundColor: rank <= 3
@@ -1011,38 +1025,50 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             subtitle: Text(
-                              '${p.category.isEmpty ? 'General' : p.category} • ${p.totalQuantity.toStringAsFixed(1)} units sold',
+                              '${p.category.isEmpty ? 'General' : p.category} • ${p.totalQuantity.toStringAsFixed(1)} units',
                               style: const TextStyle(
                                 color: AppTheme.secondaryColor,
-                                fontSize: 12,
+                                fontSize: 11,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  _money(p.totalRevenue),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                if (_isAdmin)
+                            trailing: SizedBox(
+                              width: 90,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
                                   Text(
-                                    'Profit: ${_money(p.totalProfit)} (${margin.toStringAsFixed(1)}%)',
-                                    style: TextStyle(
-                                      color: margin >= 15
-                                          ? Colors.green
-                                          : Colors.orange,
-                                      fontSize: 11,
+                                    _money(p.totalRevenue),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
                                     ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                              ],
+                                  if (_isAdmin)
+                                    Text(
+                                      'P: ${_money(p.totalProfit)}',
+                                      style: TextStyle(
+                                        color: margin >= 15
+                                            ? Colors.green
+                                            : Colors.orange,
+                                        fontSize: 10,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
                             ),
                           );
                         },
@@ -1589,66 +1615,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
         const SizedBox(height: 12),
         // Secondary dimension filters: Staff & Category
-        Row(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_isAdmin)
-              Expanded(
-                child: StreamBuilder<List<Staff>>(
-                  stream: _firestoreService.getStaffStream(),
-                  builder: (context, snapshot) {
-                    final staffList = snapshot.data ?? [];
-                    return Container(
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedStaffId,
-                          isExpanded: true,
-                          dropdownColor: AppTheme.surfaceColor,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'All',
-                              child: Text('Staff: All Cashiers'),
-                            ),
-                            ...staffList.map((s) {
-                              return DropdownMenuItem(
-                                value: s.id,
-                                child: Text('Staff: ${s.name}'),
-                              );
-                            }),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => _selectedStaffId = val);
-                            }
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            if (_isAdmin) const SizedBox(width: 12),
-            Expanded(
-              child: StreamBuilder<List<Product>>(
-                stream: _firestoreService.getProductsStream(),
+              StreamBuilder<List<Staff>>(
+                stream: _firestoreService.getStaffStream(),
                 builder: (context, snapshot) {
-                  final products = snapshot.data ?? [];
-                  final categories = <String>{'All'};
-                  for (final p in products) {
-                    if (p.category.isNotEmpty) categories.add(p.category);
-                  }
-
+                  final staffList = snapshot.data ?? [];
                   return Container(
                     height: 38,
+                    margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.05),
@@ -1656,24 +1633,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: _selectedCategory,
+                        value: _selectedStaffId,
                         isExpanded: true,
                         dropdownColor: AppTheme.surfaceColor,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
                         ),
-                        items: categories.map((cat) {
-                          return DropdownMenuItem(
-                            value: cat,
-                            child: Text(
-                              cat == 'All' ? 'Category: All' : 'Cat: $cat',
-                            ),
-                          );
-                        }).toList(),
+                        items: [
+                          const DropdownMenuItem(
+                            value: 'All',
+                            child: Text('Staff: All Cashiers'),
+                          ),
+                          ...staffList.map((s) {
+                            return DropdownMenuItem(
+                              value: s.id,
+                              child: Text('Staff: ${s.name}'),
+                            );
+                          }),
+                        ],
                         onChanged: (val) {
                           if (val != null) {
-                            setState(() => _selectedCategory = val);
+                            setState(() => _selectedStaffId = val);
                           }
                         },
                       ),
@@ -1681,6 +1662,48 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   );
                 },
               ),
+            StreamBuilder<List<Product>>(
+              stream: _firestoreService.getProductsStream(),
+              builder: (context, snapshot) {
+                final products = snapshot.data ?? [];
+                final categories = <String>{'All'};
+                for (final p in products) {
+                  if (p.category.isNotEmpty) categories.add(p.category);
+                }
+
+                return Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedCategory,
+                      isExpanded: true,
+                      dropdownColor: AppTheme.surfaceColor,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                      items: categories.map((cat) {
+                        return DropdownMenuItem(
+                          value: cat,
+                          child: Text(
+                            cat == 'All' ? 'Category: All' : 'Cat: $cat',
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _selectedCategory = val);
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

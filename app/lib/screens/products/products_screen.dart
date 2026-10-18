@@ -8,15 +8,16 @@ import 'product_form_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
   final Staff currentStaff;
+  final FirestoreService? firestoreService;
 
-  const ProductsScreen({super.key, required this.currentStaff});
+  const ProductsScreen({super.key, required this.currentStaff, this.firestoreService});
 
   @override
   State<ProductsScreen> createState() => _ProductsScreenState();
 }
 
 class _ProductsScreenState extends State<ProductsScreen> {
-  final _firestoreService = FirestoreService();
+  FirestoreService? _injectedFirestoreService;
   final _searchController = TextEditingController();
 
   String _searchQuery = '';
@@ -24,6 +25,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   bool _onlyLowStock = false;
 
   bool get _isAdmin => widget.currentStaff.role.toLowerCase() == 'admin';
+
+  FirestoreService get _firestoreService =>
+      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
 
   @override
   void initState() {
