@@ -382,10 +382,12 @@ class FirestoreServiceImpl implements FirestoreService {
     if (staffId != null) {
       query = query.where('staff_id', isEqualTo: staffId);
     }
+    debugPrint('[Reports] getLatestSale: querying /sales (staffId: $staffId)');
 
     final snapshot = await query
         .limit(1)
         .get(const GetOptions(source: Source.cache));
+    debugPrint('[Reports] getLatestSale: ${snapshot.docs.isEmpty ? 'no' : 'found'} result');
     if (snapshot.docs.isEmpty) return null;
     final doc = snapshot.docs.first;
     return Sale.fromMap(doc.data(), doc.id);
