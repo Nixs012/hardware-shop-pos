@@ -6,6 +6,7 @@ import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import '../../models/failed_sale.dart';
 import '../../models/staff.dart';
 import '../../services/auth_service.dart';
+import '../../services/csv_export_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
 import '../../utils/theme.dart';
@@ -37,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _failedSalesFuture = _loadFailedSales();
     _loadPrinterSettings();
+    _checkBackupReminder();
   }
 
   Future<void> _loadPrinterSettings() async {
@@ -45,8 +47,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _addressPhoneController.text = await _printerService.getAddressPhone();
     _footerController.text = await _printerService.getFooterMessage();
     _paperSize = await _printerService.getPaperSize();
-    _printerConnected = await _printerService.autoReconnect();
-    if (mounted) setState(() {});
+    setState(() {});
+  }
+
+  Future<void> _checkBackupReminder() async {
+    if (!_isAdmin) return;
+    final shouldShow = await _printerService.shouldShowBackupReminder();
+    if (shouldShow && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'It\'s been a while since your last data backup. '
+            'Consider exporting your sales for safekeeping.',
+          ),
+          action: SnackBarAction(label: 'Export Now', onPressed: _exportSales),
+          duration: const Duration(seconds: 10),
+        ),
+      );
+      await _printerService.markBackupReminderShown();
+    }
   }
 
   @override
@@ -111,11 +130,236 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? 'Thank you!'
           : _footerController.text.trim(),
     );
+    await _printerService.setFirstRunCompleted();
     if (mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Printer settings saved.')));
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // CSV Import / Export
+  // ---------------------------------------------------------------------------
+
+  Future<void> _exportSales() async {
+    final service = CsvExportService();
+    try {
+      final csv = await service.exportSalesToCsv();
+      if (!mounted) return;
+      if (csv.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Export was cancelled.')));
+        return;
+      }
+      if (kIsWeb) {
+        _showCsvTextDialog(context, csv, 'Sales Export');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sales exported to your Downloads folder.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _importProducts() async {
+    final service = CsvExportService();
+    try {
+      final result = await service.importProductsFromCsv();
+      if (!mounted) return;
+      final snackBar = SnackBar(
+        content: Text(
+          'Imported ${result.imported} product(s).'
+          '${result.hasErrors ? ' ${result.errors.length} error(s).' : ''}',
+        ),
+        backgroundColor: result.hasErrors ? Colors.orange : Colors.green,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+
+      if (result.hasErrors) {
+        _showImportErrorsDialog(context, result.errors);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Import failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showCsvTextDialog(BuildContext ctx, String csv, String title) {
+    showDialog(
+      context: ctx,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.backgroundColor,
+        title: Text(title),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              csv,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImportErrorsDialog(BuildContext ctx, List<String> errors) {
+    showDialog(
+      context: ctx,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.backgroundColor,
+        title: const Text('Import Warnings'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: errors.map((e) => Text('- $e')).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // UI Sections
+  // ---------------------------------------------------------------------------
+
+  Widget _buildImportExportSection() {
+    return Card(
+      color: Colors.white.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Import / Export',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Import products from a CSV file or export all sales for backup.',
+              style: TextStyle(
+                color: AppTheme.secondaryColor.withValues(alpha: 0.8),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: kIsWeb ? null : _importProducts,
+                  icon: const Icon(Icons.file_open),
+                  label: const Text('Import Products (CSV)'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _exportSales,
+                  icon: const Icon(Icons.file_download),
+                  label: const Text('Export Sales (CSV)'),
+                ),
+              ],
+            ),
+            if (kIsWeb)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'File import/export requires the Android app. '
+                  'On the web, only export (download) is available.',
+                  style: TextStyle(
+                    color: AppTheme.secondaryColor,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackupSection() {
+    return Card(
+      color: Colors.white.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Data Backup',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Your sales are stored in the cloud. '
+              'Export regularly to keep a local copy for safekeeping.',
+              style: TextStyle(
+                color: AppTheme.secondaryColor.withValues(alpha: 0.8),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _exportSales,
+              icon: const Icon(Icons.backup),
+              label: const Text('Back Up Sales Now'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<List<FailedSaleRecord>> _loadFailedSales() {
@@ -228,10 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_isAdmin) ...[
-                        Expanded(
-                          flex: 6,
-                          child: _buildStaffSection(),
-                        ),
+                        Expanded(flex: 6, child: _buildStaffSection()),
                         const SizedBox(width: 24),
                       ],
                       Expanded(
@@ -243,6 +484,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (_isAdmin) ...[
                               const SizedBox(height: 24),
                               _buildPrinterSection(),
+                              const SizedBox(height: 24),
+                              _buildImportExportSection(),
+                              const SizedBox(height: 24),
+                              _buildBackupSection(),
                               const SizedBox(height: 24),
                               failedSalesWidget,
                               const Divider(height: 36, color: Colors.white24),
@@ -268,6 +513,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 24),
                     _buildPrinterSection(),
                     const SizedBox(height: 24),
+                    _buildImportExportSection(),
+                    const SizedBox(height: 24),
+                    _buildBackupSection(),
+                    const SizedBox(height: 24),
                     failedSalesWidget,
                     const Divider(height: 48, color: Colors.white24),
                   ] else
@@ -287,9 +536,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       color: Colors.white.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.2),
-        ),
+        side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -329,8 +576,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    AppTheme.secondaryColor.withValues(alpha: 0.15),
+                backgroundColor: AppTheme.secondaryColor.withValues(
+                  alpha: 0.15,
+                ),
                 foregroundColor: Colors.white,
                 side: BorderSide(
                   color: AppTheme.secondaryColor.withValues(alpha: 0.3),
@@ -451,8 +699,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: InputDecoration(
                         labelText: 'New Password',
                         helperText: 'Minimum 6 characters',
-                        helperStyle:
-                            const TextStyle(color: AppTheme.secondaryColor),
+                        helperStyle: const TextStyle(
+                          color: AppTheme.secondaryColor,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
                             obscureNew
@@ -460,9 +709,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 : Icons.visibility,
                             color: AppTheme.secondaryColor,
                           ),
-                          onPressed: () => setDialogState(
-                            () => obscureNew = !obscureNew,
-                          ),
+                          onPressed: () =>
+                              setDialogState(() => obscureNew = !obscureNew),
                         ),
                       ),
                     ),
@@ -537,8 +785,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                           if (newPwd == currentPwd) {
                             setDialogState(() {
-                              errorMessage =
-                                  'New password must be different from current password.';
+                              errorMessage = 'New password must be different from current password.';
                             });
                             return;
                           }
@@ -576,16 +823,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 errString.contains('invalid-password')) {
                               friendlyMsg = 'Current password is incorrect.';
                             } else if (errString.contains('weak-password')) {
-                              friendlyMsg =
-                                  'New password is too weak. Please choose a stronger one.';
-                            } else if (errString
-                                .contains('requires-recent-login')) {
-                              friendlyMsg =
-                                  'Session expired. Please log out and log in again.';
+                              friendlyMsg = 'New password is too weak. Please choose a stronger one.';
+                            } else if (errString.contains(
+                              'requires-recent-login',
+                            )) {
+                              friendlyMsg = 'Session expired. Please log out and log in again.';
                             } else {
-                              friendlyMsg = e
-                                  .toString()
-                                  .replaceAll('Exception: ', '');
+                              friendlyMsg = e.toString().replaceAll(
+                                'Exception: ',
+                                '',
+                              );
                             }
 
                             setDialogState(() {
@@ -681,13 +928,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final isSelf = staff.id == widget.currentStaff.id;
                     final displayRole =
                         staff.role.trim().toLowerCase() == 'admin'
-                            ? 'ADMIN'
-                            : 'CASHIER';
+                        ? 'ADMIN'
+                        : 'CASHIER';
                     return ListTile(
                       title: Text(staff.name),
-                      subtitle: Text(
-                        '${staff.email}\nRole: $displayRole',
-                      ),
+                      subtitle: Text('${staff.email}\nRole: $displayRole'),
                       isThreeLine: true,
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -832,10 +1077,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: 'cashier',
                           child: Text('Cashier'),
                         ),
-                        DropdownMenuItem(
-                          value: 'admin',
-                          child: Text('Admin'),
-                        ),
+                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -914,8 +1156,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showEditStaffDialog(Staff staff) {
     final nameController = TextEditingController(text: staff.name);
-    final normalizedRole =
-        staff.role.trim().toLowerCase() == 'admin' ? 'admin' : 'cashier';
+    final normalizedRole = staff.role.trim().toLowerCase() == 'admin'
+        ? 'admin'
+        : 'cashier';
     String selectedRole = normalizedRole;
     bool isLoading = false;
 
@@ -950,10 +1193,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           value: 'cashier',
                           child: Text('Cashier'),
                         ),
-                        DropdownMenuItem(
-                          value: 'admin',
-                          child: Text('Admin'),
-                        ),
+                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (val) {
                         if (val != null) {

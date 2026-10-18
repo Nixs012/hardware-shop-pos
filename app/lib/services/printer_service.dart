@@ -34,6 +34,9 @@ class PrinterService {
   static const _addressPhoneKey = 'printer_address_phone';
   static const _footerKey = 'printer_footer';
 
+  static const _firstRunKey = 'first_run_completed';
+  static const _lastBackupReminderKey = 'last_backup_reminder_date';
+
   bool _connected = false;
 
   bool get isConnected => kIsWeb ? false : _connected;
@@ -72,8 +75,9 @@ class PrinterService {
 
     // Try reconnect with stored MAC
     try {
-      final ok =
-          await PrintBluetoothThermal.connect(macPrinterAddress: address);
+      final ok = await PrintBluetoothThermal.connect(
+        macPrinterAddress: address,
+      );
       _connected = ok;
       return ok;
     } catch (_) {
@@ -92,6 +96,45 @@ class PrinterService {
   Future<void> setPaperSize(PaperSize size) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_paperSizeKey, size == PaperSize.mm80 ? '80' : '58');
+  }
+
+  /// ---------------------------------------------------------------------------
+  /// First-run setup
+  /// ---------------------------------------------------------------------------
+  Future<bool> isFirstRunCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_firstRunKey) ?? false;
+  }
+
+  Future<void> setFirstRunCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_firstRunKey, true);
+  }
+
+  /// Convenience: true when the app has NOT been set up yet.
+  Future<bool> isFirstRun() => isFirstRunCompleted().then((v) => !v);
+
+  /// ---------------------------------------------------------------------------
+  /// Backup-reminder scheduling (weekly)
+  /// ---------------------------------------------------------------------------
+  /// Returns true when the weekly backup reminder should fire.
+  static const _backupInterval = Duration(days: 7);
+
+  Future<bool> shouldShowBackupReminder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastStr = prefs.getString(_lastBackupReminderKey);
+    if (lastStr == null) return true;
+    final last = DateTime.tryParse(lastStr);
+    if (last == null) return true;
+    return DateTime.now().difference(last) >= _backupInterval;
+  }
+
+  Future<void> markBackupReminderShown() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _lastBackupReminderKey,
+      DateTime.now().toIso8601String(),
+    );
   }
 
   Future<String> getShopName() async {
@@ -139,16 +182,15 @@ class PrinterService {
     final addressPhone = await getAddressPhone();
     final footerMessage = await getFooterMessage();
 
-    final bytes =
-        await _buildTicketBytes(
-          paperSize: paperSize,
-          shopName: shopName,
-          addressPhone: addressPhone,
-          sale: sale,
-          staffName: staffName,
-          items: items,
-          footerMessage: footerMessage,
-        );
+    final bytes = await _buildTicketBytes(
+      paperSize: paperSize,
+      shopName: shopName,
+      addressPhone: addressPhone,
+      sale: sale,
+      staffName: staffName,
+      items: items,
+      footerMessage: footerMessage,
+    );
 
     _debugDump(
       paperSize: paperSize,
@@ -183,20 +225,24 @@ class PrinterService {
     final profile = await CapabilityProfile.load();
     final ticket = Generator(paperSize, profile);
     final bytes = <int>[];
-    bytes.addAll(ticket.text(
-      shopName,
-      styles: const PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: PosTextSize.size2,
-        width: PosTextSize.size2,
+    bytes.addAll(
+      ticket.text(
+        shopName,
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
       ),
-    ));
+    );
     if (addressPhone.isNotEmpty) {
-      bytes.addAll(ticket.text(
-        addressPhone,
-        styles: const PosStyles(align: PosAlign.center),
-      ));
+      bytes.addAll(
+        ticket.text(
+          addressPhone,
+          styles: const PosStyles(align: PosAlign.center),
+        ),
+      );
     }
     bytes.addAll(ticket.hr());
     bytes.addAll(ticket.text('Receipt #: ${sale.id}'));
@@ -206,69 +252,81 @@ class PrinterService {
 
     // Header row
     final colWidths = _colWidths(paperSize);
-    bytes.addAll(ticket.row([
-      PosColumn(
-        text: 'Item',
-        width: colWidths[0],
-        styles: const PosStyles(bold: true),
-      ),
-      PosColumn(
-        text: 'Qty',
-        width: colWidths[1],
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      ),
-      PosColumn(
-        text: 'Total',
-        width: colWidths[2],
-        styles: const PosStyles(align: PosAlign.right, bold: true),
-      ),
-    ]));
+    bytes.addAll(
+      ticket.row([
+        PosColumn(
+          text: 'Item',
+          width: colWidths[0],
+          styles: const PosStyles(bold: true),
+        ),
+        PosColumn(
+          text: 'Qty',
+          width: colWidths[1],
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+        PosColumn(
+          text: 'Total',
+          width: colWidths[2],
+          styles: const PosStyles(align: PosAlign.right, bold: true),
+        ),
+      ]),
+    );
     bytes.addAll(ticket.hr());
 
     for (final item in items) {
-      bytes.addAll(ticket.row([
-        PosColumn(
-          text: truncateItemName(item.name, paperSize),
-          width: colWidths[0],
-        ),
-        PosColumn(
-          text: formatQuantity(item.quantity),
-          width: colWidths[1],
-          styles: const PosStyles(align: PosAlign.center),
-        ),
-        PosColumn(
-          text: formatMoney(item.total),
-          width: colWidths[2],
-          styles: const PosStyles(align: PosAlign.right),
-        ),
-      ]));
+      bytes.addAll(
+        ticket.row([
+          PosColumn(
+            text: truncateItemName(item.name, paperSize),
+            width: colWidths[0],
+          ),
+          PosColumn(
+            text: formatQuantity(item.quantity),
+            width: colWidths[1],
+            styles: const PosStyles(align: PosAlign.center),
+          ),
+          PosColumn(
+            text: formatMoney(item.total),
+            width: colWidths[2],
+            styles: const PosStyles(align: PosAlign.right),
+          ),
+        ]),
+      );
     }
 
     bytes.addAll(ticket.hr());
-    bytes.addAll(ticket.text(
-      'Subtotal: ${formatMoney(sale.totalAmount)}',
-      styles: const PosStyles(align: PosAlign.right),
-    ));
-    bytes.addAll(ticket.text(
-      'Discount: ${formatMoney(0)}',
-      styles: const PosStyles(align: PosAlign.right),
-    ));
-    bytes.addAll(ticket.text(
-      'TOTAL: ${formatMoney(sale.totalAmount)}',
-      styles: const PosStyles(
-        align: PosAlign.right,
-        bold: true,
-        height: PosTextSize.size2,
-        width: PosTextSize.size2,
+    bytes.addAll(
+      ticket.text(
+        'Subtotal: ${formatMoney(sale.totalAmount)}',
+        styles: const PosStyles(align: PosAlign.right),
       ),
-    ));
+    );
+    bytes.addAll(
+      ticket.text(
+        'Discount: ${formatMoney(0)}',
+        styles: const PosStyles(align: PosAlign.right),
+      ),
+    );
+    bytes.addAll(
+      ticket.text(
+        'TOTAL: ${formatMoney(sale.totalAmount)}',
+        styles: const PosStyles(
+          align: PosAlign.right,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      ),
+    );
     bytes.addAll(ticket.hr());
     bytes.addAll(ticket.text('Paid via: ${sale.paymentMethod}'));
     bytes.addAll(ticket.hr());
-    bytes.addAll(ticket.text(
-      footerMessage,
-      styles: const PosStyles(align: PosAlign.center),
-    ));
+    bytes.addAll(
+      ticket.text(
+        footerMessage,
+        styles: const PosStyles(align: PosAlign.center),
+      ),
+    );
     bytes.addAll(ticket.cut());
 
     return bytes;
@@ -355,9 +413,7 @@ class PrinterService {
       footerMessage,
       '[CUT]',
     ];
-    final hex = bytes
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join(' ');
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
     debugPrint(
       '[Printer][DEBUG] Receipt (${paperSize == PaperSize.mm80 ? 80 : 58}mm):\n${lines.join('\n')}',
     );
