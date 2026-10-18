@@ -566,31 +566,39 @@ class SyncService {
 
   Future<void> _drainPayments() async {
     final pending = await _storage.getPendingPayments();
+    debugPrint('[Sync] _drainPayments: ${pending.length} pending payments');
     final now = DateTime.now();
 
     for (final item in pending) {
       if (!_isOnline) {
+        debugPrint('[Sync] _drainPayments: offline, skipping ${item.payment.id}');
         break;
       }
 
       if (item.retryCount > 0 && item.lastAttemptAt != null) {
         final backoff = calculateBackoff(item.retryCount);
         if (now.difference(item.lastAttemptAt!) < backoff) {
+          debugPrint('[Sync] _drainPayments: ${item.payment.id} in backoff (retry ${item.retryCount}), skipping');
           continue;
         }
       }
 
       try {
+        debugPrint('[Sync] _drainPayments: syncing payment ${item.payment.id} (attempt ${item.retryCount + 1})');
         await _syncPayment(item);
+        debugPrint('[Sync] _drainPayments: payment ${item.payment.id} synced successfully');
         await _storage.removePendingPayment(item.payment.id);
-      } catch (error) {
+      } catch (error, stack) {
         final nextRetry = item.retryCount + 1;
         final lastError = error.toString();
+
+        debugPrint('[Sync] _drainPayments: payment ${item.payment.id} sync failed (attempt $nextRetry): $error');
+        debugPrint('[Sync] _drainPayments: stack: $stack');
 
         if (nextRetry >= maxRetries) {
           // For payments, just keep retrying indefinitely - log the error
           debugPrint(
-            'Payment ${item.payment.id} failed after $nextRetry retries: $lastError',
+            '[Sync] _drainPayments: payment ${item.payment.id} failed after $nextRetry retries: $lastError',
           );
         } else {
           final updated = item.copyWith(
@@ -599,6 +607,7 @@ class SyncService {
             lastError: lastError,
           );
           await _storage.savePendingPayment(updated);
+          debugPrint('[Sync] _drainPayments: payment ${item.payment.id} retry ${item.retryCount + 1}/$maxRetries');
         }
       }
     }
