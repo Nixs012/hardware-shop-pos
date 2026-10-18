@@ -6,6 +6,7 @@ import '../../models/sale.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/theme.dart';
+import '../../widgets/error_display_widgets.dart';
 
 class CustomerCreditScreen extends StatefulWidget {
   final Staff currentStaff;
@@ -234,16 +235,24 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                   ..sort((a, b) => b.outstanding.compareTo(a.outstanding));
 
               if (salesSnapshot.connectionState == ConnectionState.waiting &&
-                  paymentsSnapshot.connectionState == ConnectionState.waiting) {
+                  paymentsSnapshot.connectionState == ConnectionState.waiting &&
+                  salesSnapshot.data == null &&
+                  paymentsSnapshot.data == null) {
                 return const Center(child: CircularProgressIndicator());
               }
 
               if (salesSnapshot.hasError || paymentsSnapshot.hasError) {
-                return const Center(
-                  child: Text(
-                    'Error loading customer credit data.',
-                    style: TextStyle(color: Colors.red),
-                  ),
+                final error = salesSnapshot.hasError
+                    ? salesSnapshot.error
+                    : paymentsSnapshot.error;
+                final stack = salesSnapshot.hasError
+                    ? salesSnapshot.stackTrace
+                    : paymentsSnapshot.stackTrace;
+                return ErrorDisplayWidget(
+                  error: error,
+                  stackTrace: stack,
+                  onRetry: () => setState(() {}),
+                  fallbackMessage: 'Error loading customer credit data.',
                 );
               }
 

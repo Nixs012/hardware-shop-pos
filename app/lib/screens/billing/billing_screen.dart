@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:uuid/uuid.dart';
 
@@ -13,6 +14,7 @@ import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
 import '../../services/sync_service.dart';
 import '../../utils/theme.dart';
+import '../../widgets/error_display_widgets.dart';
 
 class BillingScreen extends StatefulWidget {
   final Staff currentStaff;
@@ -24,7 +26,8 @@ class BillingScreen extends StatefulWidget {
   State<BillingScreen> createState() => _BillingScreenState();
 }
 
-class _BillingScreenState extends State<BillingScreen> {
+class _BillingScreenState extends State<BillingScreen>
+    with SingleTickerProviderStateMixin {
   late final FirestoreService _firestoreService;
   final _printerService = PrinterService();
   final _searchController = TextEditingController();
@@ -35,6 +38,11 @@ class _BillingScreenState extends State<BillingScreen> {
   // Cart state: keyed by product ID
   final Map<String, SaleLineItem> _cart = {};
   Sale? _lastCompletedSale;
+
+  // Cart expansion state (mobile only)
+  bool _isCartExpanded = false;
+  static const double _cartCollapsedHeight = 88.0;
+  static const double _maxCartExpandRatio = 0.55; // max 55% of screen height
 
   @override
   void initState() {
@@ -58,6 +66,10 @@ class _BillingScreenState extends State<BillingScreen> {
       0,
       (sum, item) => sum + (item.unitPriceAtSale * item.quantity),
     );
+  }
+
+  int get _cartItemCount {
+    return _cart.values.fold(0, (sum, item) => sum + item.quantity.toInt());
   }
 
   void _addToCart(Product product) async {
@@ -115,7 +127,13 @@ class _BillingScreenState extends State<BillingScreen> {
           unitCostAtSale: product.costPrice,
         );
       }
+      _ensureCartCollapsed();
     });
+  }
+
+  void _ensureCartCollapsed() {
+    // If not expanded, keep collapsed; if expanded, keep expanded
+    if (!mounted || _isCartExpanded) return;
   }
 
   void _updateQuantity(String productId, double delta) {
@@ -214,6 +232,7 @@ class _BillingScreenState extends State<BillingScreen> {
 
       setState(() {
         _cart.clear();
+        _isCartExpanded = false;
       });
 
       final isOnline = SyncService.instance.isOnline;
@@ -276,7 +295,7 @@ class _BillingScreenState extends State<BillingScreen> {
             error.toString().contains('not connected')
                 ? 'Printer not connected'
                 : error.toString().contains('PrinterWriteException') ||
-                      error.toString().contains('PrinterConnectionException')
+                    error.toString().contains('PrinterConnectionException')
                 ? 'Printer disconnected or out of paper'
                 : 'Printer error: $error',
           ),
@@ -320,11 +339,10 @@ class _BillingScreenState extends State<BillingScreen> {
       return;
     }
     try {
-      final bool isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
       final sale =
           _lastCompletedSale ??
           await _firestoreService.getLatestSale(
-            staffId: isAdmin ? null : widget.currentStaff.id,
+            staffId: _cashierQueryId,
           );
       if (sale == null) {
         if (mounted) {
@@ -344,6 +362,11 @@ class _BillingScreenState extends State<BillingScreen> {
         );
       }
     }
+  }
+
+  String? get _cashierQueryId {
+    final isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
+    return isAdmin ? null : widget.currentStaff.id;
   }
 
   Future<Map<String, String>?> _showCustomerCreditDialog() async {
@@ -433,62 +456,41 @@ class _BillingScreenState extends State<BillingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 800;
+    final isWide = MediaQuery.of(context).size.width > 800;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxCartHeight = screenHeight * _maxCartExpandRatio;
 
-        final catalogWidget = _buildCatalog();
-        final cartWidget = _buildCart();
+    if (isWide) {
+      // Desktop: sidebar layout with fixed cart
+      return Row(
+        children: [
+          Expanded(flex: 5, child: _buildCatalog(isCartVisible: _cart.isNotEmpty)),
+          Container(
+            width: 1,
+            color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+          ),
+          Expanded(
+            flex: 3,
+            child: _buildCartExpanded(context, isDesktop: true),
+          ),
+        ],
+      );
+    }
 
-        if (isWide) {
-          return Row(
-            children: [
-              Expanded(flex: 5, child: catalogWidget),
-              Container(
-                width: 1,
-                color: AppTheme.secondaryColor.withValues(alpha: 0.3),
-              ),
-              Expanded(flex: 3, child: cartWidget),
-            ],
-          );
-        } else {
-          return Stack(
-            children: [
-              catalogWidget,
-              if (_cart.isNotEmpty)
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    height: 380, // High enough for mobile touch targets
-                    decoration: BoxDecoration(
-                      color: AppTheme.backgroundColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          blurRadius: 10,
-                          offset: const Offset(0, -5),
-                        ),
-                      ],
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                      border: Border(
-                        top: BorderSide(
-                          color: AppTheme.secondaryColor.withValues(alpha: 0.3),
-                        ),
-                      ),
-                    ),
-                    child: cartWidget,
-                  ),
-                ),
-            ],
-          );
-        }
-      },
+    // Mobile: catalog + draggable cart bar
+    return Scaffold(
+      body: Stack(
+        children: [
+          _buildCatalog(isCartVisible: _cart.isNotEmpty),
+          if (_cart.isNotEmpty) _buildDraggableCart(context, maxCartHeight),
+          if (_cart.isNotEmpty && !_isCartExpanded)
+            _buildCollapsedCartBar(),
+        ],
+      ),
     );
   }
 
-  Widget _buildCatalog() {
+  Widget _buildCatalog({required bool isCartVisible}) {
     return Column(
       children: [
         Padding(
@@ -518,15 +520,16 @@ class _BillingScreenState extends State<BillingScreen> {
               isAdmin: widget.currentStaff.role.toLowerCase() == 'admin',
             ),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  snapshot.data == null) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return const Center(
-                  child: Text(
-                    'Error loading products',
-                    style: TextStyle(color: Colors.red),
-                  ),
+                return ErrorDisplayWidget(
+                  error: snapshot.error,
+                  stackTrace: snapshot.stackTrace,
+                  onRetry: () => setState(() {}),
+                  fallbackMessage: 'Error loading products',
                 );
               }
 
@@ -552,9 +555,9 @@ class _BillingScreenState extends State<BillingScreen> {
                   left: 16.0,
                   right: 16.0,
                   top: 0,
-                  bottom: _cart.isNotEmpty
-                      ? 400
-                      : 16.0, // extra padding on mobile if cart is visible
+                  bottom: isCartVisible
+                      ? (_isCartExpanded ? 200.0 : 90.0)
+                      : 16.0,
                 ),
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 200,
@@ -638,40 +641,232 @@ class _BillingScreenState extends State<BillingScreen> {
     );
   }
 
-  Widget _buildCart() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16.0),
+  /// The collapsed cart bar at the bottom of the screen (mobile).
+  /// Shows item count, total, and a "Complete Sale" button.
+  /// Height: 88 dp. Tapping it expands the full cart.
+  Widget _buildCollapsedCartBar() {
+    final itemCount = _cartItemCount;
+    final itemLabel = itemCount == 1 ? 'item' : 'items';
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: GestureDetector(
+        onTap: () => setState(() => _isCartExpanded = true),
+        child: Container(
+          height: _cartCollapsedHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.02),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            color: AppTheme.backgroundColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(16),
+            ),
+            border: Border(
+              top: BorderSide(
+                color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+              ),
+            ),
           ),
           child: Row(
             children: [
-              const Icon(Icons.shopping_cart, color: Colors.white),
+              const Icon(Icons.shopping_cart, color: Colors.white70, size: 20),
               const SizedBox(width: 8),
-              const Expanded(
+              Text(
+                '$itemCount $itemLabel',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(width: 8),
+              const VerticalDivider(
+                color: Colors.white12,
+                width: 1,
+                indent: 8,
+                endIndent: 8,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  'Current Sale',
+                  'KSh ${_cartTotal.toStringAsFixed(2)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                height: 56,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _cart.isEmpty ? null : _checkout,
+                  child: const Text(
+                    'Complete Sale',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A draggable cart panel for mobile that slides up from the collapsed
+  /// bar to the fully expanded state. Uses a drag gesture detector.
+  Widget _buildDraggableCart(BuildContext context, double maxCartHeight) {
+    final cartHeight = _isCartExpanded ? maxCartHeight : _cartCollapsedHeight;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final effectiveHeight = math.min(cartHeight, screenHeight * _maxCartExpandRatio);
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: GestureDetector(
+        onTap: _isCartExpanded
+            ? () => setState(() => _isCartExpanded = false)
+            : null,
+        onPanUpdate: (details) {
+          final delta = details.delta.dy;
+          if (delta < 0 && !_isCartExpanded) {
+            // Swiping up -> expand
+            setState(() {
+              _isCartExpanded = true;
+            });
+          } else if (delta > 0 && _isCartExpanded) {
+            // Swiping down -> collapse
+            setState(() {
+              _isCartExpanded = false;
+            });
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          height: effectiveHeight,
+          decoration: BoxDecoration(
+            color: AppTheme.backgroundColor,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(_isCartExpanded ? 0 : 16),
+            ),
+            border: Border(
+              top: BorderSide(
+                color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
+          child: _buildCartExpanded(context),
+        ),
+      ),
+    );
+  }
+
+  /// The full cart widget used for desktop (always expanded) and mobile
+  /// (when dragged up). Shows cart items list, total, and Complete Sale button.
+  Widget _buildCartExpanded(BuildContext context, {bool isDesktop = false}) {
+    return Column(
+      children: [
+        // Drag handle (mobile only)
+        if (!isDesktop)
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        if (!isDesktop && _isCartExpanded && _cart.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Current Sale',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (_cart.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-                  onPressed: () => setState(() => _cart.clear()),
-                  tooltip: 'Clear Cart',
+                const SizedBox(height: 4),
+                Text(
+                  '$_cartItemCount ${_cartItemCount == 1 ? 'item' : 'items'}',
+                  style: const TextStyle(
+                    color: AppTheme.secondaryColor,
+                    fontSize: 12,
+                  ),
                 ),
-            ],
+              ],
+            ),
+          )
+        else if (isDesktop)
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.02),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.shopping_cart, color: Colors.white),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Current Sale',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (_cart.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep,
+                        color: Colors.redAccent),
+                    onPressed: () => setState(() => _cart.clear()),
+                    tooltip: 'Clear Cart',
+                  ),
+              ],
+            ),
           ),
-        ),
         const Divider(height: 1, color: Colors.white12),
         Expanded(
           child: _cart.isEmpty
@@ -837,7 +1032,10 @@ class _BillingScreenState extends State<BillingScreen> {
                   onPressed: _cart.isEmpty ? null : _checkout,
                   child: const Text(
                     'Complete Sale',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

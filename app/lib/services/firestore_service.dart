@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../models/customer_payment.dart';
 import '../models/expense.dart';
@@ -10,12 +11,102 @@ import '../models/sale.dart';
 import '../models/staff.dart';
 import 'sync_service.dart';
 
+/// A helper that wraps a source stream, caches the last emitted value,
+/// and replays it to new subscribers immediately (BehaviorSubject pattern).
+///
+/// This fixes two problems:
+/// 1. "Bad state: Stream has already been listened to" — the underlying
+///    Firestore `snapshots()` stream is only subscribed once.
+/// 2. Late subscribers (e.g. when switching tabs) miss the first event —
+///    this replays the last value immediately on subscription.
+///
+/// The wrapped stream is a broadcast stream, so multiple listeners are OK.
+class CachedReplayStream<T> {
+  final StreamController<T> _controller =
+      StreamController<T>.broadcast();
+  late final StreamSubscription<T> _subscription;
+  T? _lastValue;
+  Object? _lastError;
+  StackTrace? _lastErrorStack;
+  bool _hasError = false;
+  bool _isDisposed = false;
+
+  CachedReplayStream(Stream<T> source) {
+    _subscription = source.listen(
+      (data) {
+        _lastValue = data;
+        _hasError = false;
+        _lastError = null;
+        _lastErrorStack = null;
+        if (!_controller.isClosed && !_isDisposed) {
+          _controller.add(data);
+        }
+      },
+      onError: (Object err, StackTrace? stack) {
+        _hasError = true;
+        _lastError = err;
+        _lastErrorStack = stack;
+        if (!_controller.isClosed && !_isDisposed) {
+          _controller.addError(err, stack);
+        }
+      },
+      onDone: () {
+        if (!_controller.isClosed && !_isDisposed) {
+          _controller.close();
+        }
+      },
+    );
+  }
+
+  /// Returns a broadcast stream that replays the last value to new subscribers.
+  Stream<T> get stream {
+    if (_isDisposed) {
+      return const Stream.empty();
+    }
+    // Use asBroadcastStream to support multiple listeners
+    // and manually replay the cached value
+    final replayController = StreamController<T>.broadcast();
+
+    // Schedule replay in a microtask so listeners attach first
+    scheduleMicrotask(() {
+      if (_isDisposed || replayController.isClosed) return;
+      if (_hasError && _lastError != null) {
+        replayController.addError(_lastError!, _lastErrorStack);
+      } else if (_lastValue != null) {
+        replayController.add(_lastValue as T);
+      }
+    });
+
+    // Forward subsequent events from the main controller
+    _controller.stream.listen(
+      (data) {
+        if (!replayController.isClosed) replayController.add(data);
+      },
+      onError: (Object err, StackTrace? stack) {
+        if (!replayController.isClosed) replayController.addError(err, stack);
+      },
+      onDone: () {
+        if (!replayController.isClosed) replayController.close();
+      },
+    );
+
+    return replayController.stream;
+  }
+
+  void dispose() {
+    _isDisposed = true;
+    _subscription.cancel();
+    _controller.close();
+  }
+}
+
 /// Abstract interface for Firestore data operations.
 /// Screens depend on this interface so they can be tested with a mock.
 abstract class FirestoreService {
   /// Streams products. If [isAdmin] is false, cost data is never requested or read.
   /// Seamlessly loads from local cache for offline/airplane mode support.
-  /// Each stream is cached so multiple listeners share a single Firestore subscription.
+  /// Each stream is cached so multiple listeners share a single Firestore subscription,
+  /// and late subscribers (e.g. tab switches) receive the last value immediately.
   Stream<List<Product>> getProductsStream({bool isAdmin = false});
 
   /// Streams sales. Cashiers only read sales documents (without cost fields).
@@ -53,15 +144,26 @@ class FirestoreServiceImpl implements FirestoreService {
   FirestoreServiceImpl({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
-  // Cache single-subscription streams so each Firestore query is only
-  // listened to once across the entire app. This prevents "Bad state:
-  // Stream has already been listened to" errors when multiple StreamBuilders
-  // subscribe to the same stream (e.g., across report tab switches).
-  final Map<String, Stream<List<Product>>> _productStreams = {};
-  final Map<String, Stream<List<Sale>>> _saleStreams = {};
-  Stream<List<CustomerPayment>>? _paymentsStream;
-  Stream<List<Staff>>? _staffStream;
-  Stream<List<Expense>>? _expensesStream;
+  // Cache streams so each Firestore query is only listened to once across
+  // the entire app. This prevents "Bad state: Stream has already been
+  // listened to" errors. Each CachedReplayStream replays the last value to
+  // late subscribers (e.g. when switching tabs).
+  final Map<String, CachedReplayStream<List<Product>>> _productStreams = {};
+  final Map<String, CachedReplayStream<List<Sale>>> _saleStreams = {};
+  CachedReplayStream<List<CustomerPayment>>? _paymentsStream;
+  CachedReplayStream<List<Staff>>? _staffStream;
+  CachedReplayStream<List<Expense>>? _expensesStream;
+
+  // For cashier mode: sales are queried by staff_id. The Firestore rule
+  // requires staff_id == request.auth.uid, so we use the auth UID.
+  // The Staff model stores authUid separately from the document id.
+  String? _cashierAuthUid;
+
+  /// Call this with the current user's Firebase Auth UID when operating as a
+  /// cashier, so that sales queries filter correctly against Firestore rules.
+  void setCashierAuthUid(String? uid) {
+    _cashierAuthUid = uid;
+  }
 
   @override
   Future<void> addProduct(Product product) {
@@ -96,80 +198,74 @@ class FirestoreServiceImpl implements FirestoreService {
 
   /// Streams products. If [isAdmin] is false, cost data is never requested or read.
   /// Seamlessly loads from local cache for offline/airplane mode support.
-  /// Each stream is cached so multiple listeners share a single Firestore subscription.
+  /// Each stream is cached so multiple listeners share a single Firestore subscription,
+  /// and late subscribers (e.g. tab switches) receive the last value immediately.
   @override
   Stream<List<Product>> getProductsStream({bool isAdmin = false}) {
     final key = isAdmin ? 'admin' : 'cashier';
+
     if (_productStreams.containsKey(key)) {
-      return _productStreams[key]!;
+      return _productStreams[key]!.stream;
     }
 
-    final controller = StreamController<List<Product>>.broadcast();
-
-    // Immediately emit cached products so offline users don't see empty screens
-    SyncService.instance.getCachedProducts().then((cached) {
-      if (cached.isNotEmpty && !controller.isClosed) {
-        controller.add(cached);
-      }
-    });
+    Stream<List<Product>> baseStream;
 
     if (!isAdmin) {
-      final sub = _db.collection('products').snapshots().listen((snapshot) {
+      // Cashier: only reads /products (cost data is admin-only per rules)
+      baseStream = _db.collection('products').snapshots().map((snapshot) {
         final products = snapshot.docs
             .map((doc) => Product.fromMap(doc.data(), doc.id))
             .toList();
         SyncService.instance.cacheProducts(products, isAdmin: false);
+        return products;
+      });
+    } else {
+      // Admin: merge /products with admin-only /product_costs
+      // Use a broadcast controller that waits for BOTH snapshots before emitting
+      final controller = StreamController<List<Product>>.broadcast();
+      List<QueryDocumentSnapshot<Map<String, dynamic>>>? productDocs;
+      Map<String, Map<String, dynamic>> costs = {};
+
+      void tryEmit() {
+        if (productDocs == null) return;
+        final products = productDocs!.map((doc) {
+          final costData = costs[doc.id];
+          return Product.fromMap(doc.data(), doc.id, costData);
+        }).toList();
+        SyncService.instance.cacheProducts(products, isAdmin: true);
         if (!controller.isClosed) {
           controller.add(products);
         }
-      }, onError: (Object err) {
-        if (!controller.isClosed) {
-          controller.addError(err);
-        }
+      }
+
+      final sub1 = _db.collection('products').snapshots().listen((snap) {
+        productDocs = snap.docs;
+        tryEmit();
+      }, onError: (Object err, StackTrace stack) {
+        if (!controller.isClosed) controller.addError(err, stack);
       });
 
-      controller.onCancel = () => sub.cancel();
-      _productStreams[key] = controller.stream;
-      return controller.stream;
+      final sub2 = _db.collection('product_costs').snapshots().listen((snap) {
+        costs = {for (final doc in snap.docs) doc.id: doc.data()};
+        tryEmit();
+      }, onError: (Object err, StackTrace stack) {
+        // product_costs errors should not block the merged stream
+        debugPrint('product_costs stream error (non-fatal): $err');
+        // Still tryEmit with whatever we have
+        tryEmit();
+      });
+
+      controller.onCancel = () {
+        sub1.cancel();
+        sub2.cancel();
+      };
+
+      baseStream = controller.stream;
     }
 
-    // For Admin: merge /products with admin-only /product_costs
-    List<QueryDocumentSnapshot<Map<String, dynamic>>>? productDocs;
-    Map<String, Map<String, dynamic>> costs = {};
-
-    void emitMerged() {
-      if (productDocs == null) return;
-      final products = productDocs!.map((doc) {
-        final costData = costs[doc.id];
-        return Product.fromMap(doc.data(), doc.id, costData);
-      }).toList();
-      SyncService.instance.cacheProducts(products, isAdmin: true);
-      if (!controller.isClosed) {
-        controller.add(products);
-      }
-    }
-
-    final sub1 = _db.collection('products').snapshots().listen((snap) {
-      productDocs = snap.docs;
-      emitMerged();
-    }, onError: (Object err) {
-      if (!controller.isClosed) controller.addError(err);
-    });
-
-    final sub2 = _db.collection('product_costs').snapshots().listen((snap) {
-      costs = {for (final doc in snap.docs) doc.id: doc.data()};
-      emitMerged();
-    }, onError: (Object _) {
-      emitMerged();
-    });
-
-    controller.onCancel = () {
-      sub1.cancel();
-      sub2.cancel();
-    };
-
-    _productStreams[key] = controller.stream;
-    return controller.stream;
+    final cached = CachedReplayStream<List<Product>>(baseStream);
+    _productStreams[key] = cached;
+    return cached.stream;
   }
 
   @override
@@ -195,67 +291,80 @@ class FirestoreServiceImpl implements FirestoreService {
   /// Each stream is cached so multiple listeners share a single Firestore subscription.
   @override
   Stream<List<Sale>> getSalesStream({bool isAdmin = false, String? staffId}) {
-    final key = isAdmin ? 'admin:${staffId ?? 'all' }' : 'cashier:$staffId';
+    // For cashiers, use the auth UID (not the document ID) to match Firestore rules
+    final effectiveStaffId = isAdmin ? null : (_cashierAuthUid ?? staffId);
+    final key = isAdmin ? 'admin:all' : 'cashier:${effectiveStaffId ?? 'unknown'}';
+
     if (_saleStreams.containsKey(key)) {
-      return _saleStreams[key]!;
+      return _saleStreams[key]!.stream;
     }
 
+    Stream<List<Sale>> baseStream;
+
     if (!isAdmin) {
+      // Cashier: query /sales filtered by staff_id
+      // Firestore rule requires staff_id == request.auth.uid
       var query = _db.collection('sales').orderBy('timestamp', descending: true);
-      if (staffId != null) {
-        query = query.where('staff_id', isEqualTo: staffId);
+      if (effectiveStaffId != null) {
+        query = query.where('staff_id', isEqualTo: effectiveStaffId);
       }
-      final stream = query.snapshots().map((snapshot) {
+      baseStream = query.snapshots().map((snapshot) {
         final sales = snapshot.docs
             .map((doc) => Sale.fromMap(doc.data(), doc.id))
             .toList();
         sales.sort((a, b) => b.timestamp.compareTo(a.timestamp));
         return sales;
       });
-      _saleStreams[key] = stream;
-      return stream;
-    }
+    } else {
+      // For Admin: merge /sales with admin-only /sales_costs
+      final controller = StreamController<List<Sale>>.broadcast();
+      List<QueryDocumentSnapshot<Map<String, dynamic>>>? saleDocs;
+      Map<String, Map<String, dynamic>> costs = {};
 
-    // For Admin: merge /sales with admin-only /sales_costs
-    final controller = StreamController<List<Sale>>.broadcast();
-    List<QueryDocumentSnapshot<Map<String, dynamic>>>? saleDocs;
-    Map<String, Map<String, dynamic>> costs = {};
-
-    void emitMerged() {
-      if (saleDocs == null) return;
-      final sales = saleDocs!.map((doc) {
-        final costData = costs[doc.id];
-        return Sale.fromMap(doc.data(), doc.id, costData);
-      }).toList();
-      sales.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      if (!controller.isClosed) {
-        controller.add(sales);
+      void emitMerged() {
+        if (saleDocs == null) return;
+        final sales = saleDocs!.map((doc) {
+          final costData = costs[doc.id];
+          return Sale.fromMap(doc.data(), doc.id, costData);
+        }).toList();
+        sales.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        if (!controller.isClosed) {
+          controller.add(sales);
+        }
       }
+
+      final sub1 = _db
+          .collection('sales')
+          .orderBy('timestamp', descending: true)
+          .snapshots()
+          .listen((snap) {
+            saleDocs = snap.docs;
+            emitMerged();
+          }, onError: (Object err, StackTrace stack) {
+            if (!controller.isClosed) controller.addError(err, stack);
+          });
+
+      final sub2 = _db.collection('sales_costs').snapshots().listen((snap) {
+        costs = {for (final doc in snap.docs) doc.id: doc.data()};
+        emitMerged();
+      }, onError: (Object err, StackTrace stack) {
+        // sales_costs errors should not block the merged stream;
+        // sales without cost data can still emit
+        debugPrint('sales_costs stream error (non-fatal): $err');
+        emitMerged();
+      });
+
+      controller.onCancel = () {
+        sub1.cancel();
+        sub2.cancel();
+      };
+
+      baseStream = controller.stream;
     }
 
-    final sub1 = _db
-        .collection('sales')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .listen((snap) {
-          saleDocs = snap.docs;
-          emitMerged();
-        }, onError: controller.addError);
-
-    final sub2 = _db.collection('sales_costs').snapshots().listen((snap) {
-      costs = {for (final doc in snap.docs) doc.id: doc.data()};
-      emitMerged();
-    }, onError: (Object _) {
-      emitMerged();
-    });
-
-    controller.onCancel = () {
-      sub1.cancel();
-      sub2.cancel();
-    };
-
-    _saleStreams[key] = controller.stream;
-    return controller.stream;
+    final cached = CachedReplayStream<List<Sale>>(baseStream);
+    _saleStreams[key] = cached;
+    return cached.stream;
   }
 
   @override
@@ -294,26 +403,30 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<CustomerPayment>> getCustomerPaymentsStream() {
-    _paymentsStream ??= _db
-        .collection('customer_payments')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs
-              .map((doc) => CustomerPayment.fromMap(doc.data(), doc.id))
-              .toList();
-        });
-    return _paymentsStream!;
+    _paymentsStream ??= CachedReplayStream<List<CustomerPayment>>(
+      _db
+          .collection('customer_payments')
+          .orderBy('timestamp', descending: true)
+          .snapshots()
+          .map((snapshot) {
+            return snapshot.docs
+                .map((doc) => CustomerPayment.fromMap(doc.data(), doc.id))
+                .toList();
+          }),
+    );
+    return _paymentsStream!.stream;
   }
 
   @override
   Stream<List<Staff>> getStaffStream() {
-    _staffStream ??= _db.collection('staff').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Staff.fromMap(doc.data(), doc.id))
-          .toList();
-    });
-    return _staffStream!;
+    _staffStream ??= CachedReplayStream<List<Staff>>(
+      _db.collection('staff').snapshots().map((snapshot) {
+        return snapshot.docs
+            .map((doc) => Staff.fromMap(doc.data(), doc.id))
+            .toList();
+      }),
+    );
+    return _staffStream!.stream;
   }
 
   @override
@@ -343,11 +456,13 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<Expense>> getExpensesStream() {
-    _expensesStream ??= _db.collection('expenses').snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Expense.fromMap(doc.data(), doc.id))
-          .toList();
-    });
-    return _expensesStream!;
+    _expensesStream ??= CachedReplayStream<List<Expense>>(
+      _db.collection('expenses').snapshots().map((snapshot) {
+        return snapshot.docs
+            .map((doc) => Expense.fromMap(doc.data(), doc.id))
+            .toList();
+      }),
+    );
+    return _expensesStream!.stream;
   }
 }

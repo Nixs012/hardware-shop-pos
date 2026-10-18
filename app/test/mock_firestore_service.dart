@@ -49,6 +49,9 @@ class MockFirestoreService implements FirestoreService {
   @override
   Stream<List<Expense>> getExpensesStream() => _expensesController.stream;
 
+  // No-op: the mock doesn't filter by auth UID, so this is intentionally ignored.
+  void setCashierAuthUid(String? uid) {}
+
   @override
   Future<void> addProduct(Product product) async {}
 

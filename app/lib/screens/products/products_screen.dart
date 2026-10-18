@@ -4,6 +4,7 @@ import '../../models/staff.dart';
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/theme.dart';
+import '../../widgets/error_display_widgets.dart';
 import 'product_form_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -52,15 +53,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body: StreamBuilder<List<Product>>(
         stream: _firestoreService.getProductsStream(isAdmin: _isAdmin),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              snapshot.data == null) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error loading products: ${snapshot.error}',
-                style: const TextStyle(color: Colors.red),
-              ),
+            return ErrorDisplayWidget(
+              error: snapshot.error,
+              stackTrace: snapshot.stackTrace,
+              onRetry: () => setState(() {}),
+              fallbackMessage: 'Error loading products',
             );
           }
 

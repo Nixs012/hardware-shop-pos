@@ -6,6 +6,7 @@ import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
 import 'customer_credit/customer_credit_screen.dart';
 import '../models/staff.dart';
+import '../services/firestore_service.dart';
 import '../utils/theme.dart';
 import '../widgets/sync_status_indicator.dart';
 
@@ -51,18 +52,18 @@ List<NavItem> buildNavItems(bool isAdmin) {
 }
 
 /// Builds the screen widgets matching the nav item order from [buildNavItems].
-List<Widget> buildScreens(Staff currentStaff, bool isAdmin) {
+List<Widget> buildScreens(Staff currentStaff, bool isAdmin, FirestoreService firestoreService) {
   final List<Widget> screens = [
-    BillingScreen(currentStaff: currentStaff),
-    ProductsScreen(currentStaff: currentStaff),
-    ReportsScreen(currentStaff: currentStaff),
+    BillingScreen(currentStaff: currentStaff, firestoreService: firestoreService),
+    ProductsScreen(currentStaff: currentStaff, firestoreService: firestoreService),
+    ReportsScreen(currentStaff: currentStaff, firestoreService: firestoreService),
   ];
 
   if (isAdmin) {
-    screens.add(CustomerCreditScreen(currentStaff: currentStaff));
+    screens.add(CustomerCreditScreen(currentStaff: currentStaff, firestoreService: firestoreService));
   }
 
-  screens.add(SettingsScreen(currentStaff: currentStaff));
+  screens.add(SettingsScreen(currentStaff: currentStaff, firestoreService: firestoreService));
   return screens;
 }
 
@@ -78,13 +79,19 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   late final bool _isAdmin;
   late final List<Widget> _screens;
+  late final FirestoreServiceImpl _firestoreService;
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
-    _screens = buildScreens(widget.currentStaff, _isAdmin);
+    _firestoreService = FirestoreServiceImpl();
+    // For cashiers, set the auth UID so sales queries match Firestore rules
+    if (!_isAdmin) {
+      _firestoreService.setCashierAuthUid(widget.currentStaff.authUid);
+    }
+    _screens = buildScreens(widget.currentStaff, _isAdmin, _firestoreService);
   }
 
   static List<NavItem> _navItems(bool isAdmin) => buildNavItems(isAdmin);

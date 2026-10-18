@@ -10,6 +10,7 @@ import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
 import '../../services/sync_service.dart';
 import '../../utils/theme.dart';
+import '../../widgets/error_display_widgets.dart';
 
 class ReportsScreen extends StatefulWidget {
   final Staff currentStaff;
@@ -206,15 +207,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
         staffId: _isAdmin ? null : widget.currentStaff.id,
       ),
       builder: (context, salesSnapshot) {
-        if (salesSnapshot.connectionState == ConnectionState.waiting) {
+        if (salesSnapshot.connectionState == ConnectionState.waiting &&
+            salesSnapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
         if (salesSnapshot.hasError) {
-          return const Center(
-            child: Text(
-              'Error loading sales data',
-              style: TextStyle(color: Colors.red),
-            ),
+          return ErrorDisplayWidget(
+            error: salesSnapshot.error,
+            stackTrace: salesSnapshot.stackTrace,
+            onRetry: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Refreshing data...')),
+              );
+              setState(() {});
+            },
+            fallbackMessage: 'Error loading sales data',
           );
         }
 
@@ -447,15 +454,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return StreamBuilder<List<Sale>>(
       stream: _firestoreService.getSalesStream(isAdmin: true),
       builder: (context, salesSnapshot) {
-        if (salesSnapshot.connectionState == ConnectionState.waiting) {
+        if (salesSnapshot.connectionState == ConnectionState.waiting &&
+            salesSnapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
         if (salesSnapshot.hasError) {
-          return const Center(
-            child: Text(
-              'Error loading sales data',
-              style: TextStyle(color: Colors.red),
-            ),
+          return ErrorDisplayWidget(
+            error: salesSnapshot.error,
+            stackTrace: salesSnapshot.stackTrace,
+            onRetry: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Refreshing data...')),
+              );
+              setState(() {});
+            },
+            fallbackMessage: 'Error loading sales data',
           );
         }
 
@@ -849,8 +862,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return StreamBuilder<List<Sale>>(
       stream: _firestoreService.getSalesStream(isAdmin: true),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return ErrorDisplayWidget(
+            error: snapshot.error,
+            stackTrace: snapshot.stackTrace,
+            onRetry: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Refreshing data...')),
+              );
+              setState(() {});
+            },
+            fallbackMessage: 'Error loading sales data',
+          );
         }
         final sales = snapshot.data ?? [];
 
