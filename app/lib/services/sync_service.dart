@@ -501,31 +501,39 @@ class SyncService {
 
     try {
       final pending = await _storage.getPendingSales();
+      debugPrint('[Sync] _drainSales: ${pending.length} pending sales');
       final now = DateTime.now();
 
       for (final item in pending) {
         if (!_isOnline) {
+          debugPrint('[Sync] _drainSales: offline, skipping ${item.sale.id}');
           break;
         }
 
         if (item.retryCount > 0 && item.lastAttemptAt != null) {
           final backoff = calculateBackoff(item.retryCount);
           if (now.difference(item.lastAttemptAt!) < backoff) {
+            debugPrint('[Sync] _drainSales: ${item.sale.id} in backoff (retry ${item.retryCount}), skipping');
             continue;
           }
         }
 
         try {
+          debugPrint('[Sync] _drainSales: syncing sale ${item.sale.id} (attempt ${item.retryCount + 1})');
           if (_customSyncSale != null) {
             await _customSyncSale(item);
           } else {
             await _defaultFirestoreSync(item);
           }
 
+          debugPrint('[Sync] _drainSales: sale ${item.sale.id} synced successfully, removing from pending');
           await _storage.removePending(item.sale.id);
-        } catch (error) {
+        } catch (error, stack) {
           final nextRetry = item.retryCount + 1;
           final lastError = error.toString();
+
+          debugPrint('[Sync] _drainSales: sale ${item.sale.id} sync failed (attempt $nextRetry): $error',);
+          debugPrint('[Sync] _drainSales: stack: $stack');
 
           if (nextRetry >= maxRetries) {
             final reviewItem = item.copyWith(
@@ -536,7 +544,7 @@ class SyncService {
             await _storage.saveNeedsReview(reviewItem);
             await _storage.removePending(item.sale.id);
             debugPrint(
-              'Sale ${item.sale.id} moved to Needs Review after $nextRetry retries.',
+              '[Sync] _drainSales: sale ${item.sale.id} moved to Needs Review after $nextRetry retries. Error: $lastError',
             );
           } else {
             final updated = item.copyWith(
@@ -545,11 +553,13 @@ class SyncService {
               lastError: lastError,
             );
             await _storage.savePending(updated);
+            debugPrint('[Sync] _drainSales: sale ${item.sale.id} retry ${item.retryCount + 1}/$maxRetries');
           }
         }
       }
     } finally {
       _pendingCount = await _storage.getPendingCount();
+      debugPrint('[Sync] _drainSales: complete. pending count: $_pendingCount');
       _notifyStatus();
     }
   }
@@ -597,11 +607,12 @@ class SyncService {
   Future<void> _defaultFirestoreSync(QueuedSale queuedSale) async {
     final db = FirebaseFirestore.instance;
     final saleId = queuedSale.sale.id;
+    debugPrint('[Sync] _defaultFirestoreSync: starting for sale $saleId');
 
     // 1. Idempotency check: Client UUID prevents duplicate sales
     final existing = await db.collection('sales').doc(saleId).get();
     if (existing.exists) {
-      // Sale already exists in Firestore!
+      debugPrint('[Sync] _defaultFirestoreSync: sale $saleId already exists, skipping');
       // If admin cost document is missing, ensure it's recorded
       if (queuedSale.includeCostSnapshot) {
         final costDoc = await db.collection('sales_costs').doc(saleId).get();
@@ -636,7 +647,17 @@ class SyncService {
       });
     }
 
-    await batch.commit().timeout(const Duration(seconds: 15));
+    debugPrint('[Sync] _defaultFirestoreSync: committing batch for sale $saleId (${queuedSale.sale.lineItems.length} line items)');
+    try {
+      await batch.commit().timeout(const Duration(seconds: 15));
+      debugPrint('[Sync] _defaultFirestoreSync: batch committed for sale $saleId');
+    } on FirebaseException catch (e) {
+      debugPrint('[Sync] _defaultFirestoreSync: FirebaseException for sale $saleId: ${e.code} - ${e.message}');
+      rethrow;
+    } catch (e) {
+      debugPrint('[Sync] _defaultFirestoreSync: unexpected error for sale $saleId: $e');
+      rethrow;
+    }
   }
 
   Future<List<FailedSaleRecord>> getFailedSales() async {

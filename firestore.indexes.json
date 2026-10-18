@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "name": "sales-staff-timestamp-desc",
+      "collectionId": "sales",
+      "queryScope": "COLLECTION",
+      "indexScope": "DEFAULT",
+      "fields": [
+        {
+          "fieldPath": "staff_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -229,7 +229,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
           stream: _firestoreService.getCustomerPaymentsStream(),
           builder: (context, paymentsSnapshot) {
             final allSales = salesSnapshot.data ?? [];
+            // Render partial data: if payments stream is waiting or errored,
+            // fall back to an empty list and show a notice inline.
             final allPayments = paymentsSnapshot.data ?? [];
+            final paymentsError = paymentsSnapshot.hasError
+                ? paymentsSnapshot.error
+                : null;
 
             // Filter sales by date range & secondary filters
             final filteredSales = allSales.where((sale) {
@@ -299,6 +304,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildFilterBar(),
+                      // Inline error banner for customer payments stream
+                      if (paymentsError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: MaterialBanner(
+                            backgroundColor: Colors.red.withValues(alpha: 0.15),
+                            leading: const Icon(Icons.warning, color: Colors.red),
+                            content: Text(
+                              'Customer payments: failed to load. Showing without payment data.\n$paymentsError',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => setState(() {}),
+                                child: const Text('RETRY'),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 20),
                       if (isDesktop)
                         Row(
@@ -476,7 +500,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
           stream: _firestoreService.getExpensesStream(),
           builder: (context, expensesSnapshot) {
             final sales = salesSnapshot.data ?? [];
+            // Render partial data: if expenses stream is waiting or errored,
+            // fall back to an empty list and show a notice inline.
             final expenses = expensesSnapshot.data ?? [];
+            final expensesError = expensesSnapshot.hasError
+                ? expensesSnapshot.error
+                : null;
 
             final filteredSales = sales.where((sale) {
               final inRange =
@@ -529,6 +558,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildFilterBar(),
+                      // Inline error banner for expenses stream
+                      if (expensesError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: MaterialBanner(
+                            backgroundColor:
+                                Colors.red.withValues(alpha: 0.15),
+                            leading:
+                                const Icon(Icons.warning, color: Colors.red),
+                            content: Text(
+                              'Expenses: failed to load. Showing COGS/gross profit without expenses.\n$expensesError',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => setState(() {}),
+                                child: const Text('RETRY'),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,

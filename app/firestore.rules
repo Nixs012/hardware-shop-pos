@@ -19,7 +19,13 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow create, delete: if isAdmin();
+      // Cashiers may only decrement stock via an atomic FieldValue.increment
+      // on quantity_on_hand. All other product writes are admin-only.
+      allow update: if isAuthenticated()
+        && request.resource.data.keys().hasOnly(resource.data.keys())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity_on_hand'])
+        && request.resource.data['quantity_on_hand'] is number;
     }
 
     // Cost data for products is strictly restricted to admins only

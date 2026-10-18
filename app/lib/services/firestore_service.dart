@@ -211,8 +211,9 @@ class FirestoreServiceImpl implements FirestoreService {
     Stream<List<Product>> baseStream;
 
     if (!isAdmin) {
-      // Cashier: only reads /products (cost data is admin-only per rules)
+      debugPrint('[Reports] products stream (cashier): subscribing to /products');
       baseStream = _db.collection('products').snapshots().map((snapshot) {
+        debugPrint('[Reports] products stream (cashier): received ${snapshot.docs.length} docs');
         final products = snapshot.docs
             .map((doc) => Product.fromMap(doc.data(), doc.id))
             .toList();
@@ -220,8 +221,7 @@ class FirestoreServiceImpl implements FirestoreService {
         return products;
       });
     } else {
-      // Admin: merge /products with admin-only /product_costs
-      // Use a broadcast controller that waits for BOTH snapshots before emitting
+      debugPrint('[Reports] products stream (admin): subscribing to /products + /product_costs');
       final controller = StreamController<List<Product>>.broadcast();
       List<QueryDocumentSnapshot<Map<String, dynamic>>>? productDocs;
       Map<String, Map<String, dynamic>> costs = {};
@@ -239,9 +239,13 @@ class FirestoreServiceImpl implements FirestoreService {
       }
 
       final sub1 = _db.collection('products').snapshots().listen((snap) {
+        if (productDocs == null) {
+          debugPrint('[Reports] products stream (admin): first /products snapshot (${snap.docs.length} docs)');
+        }
         productDocs = snap.docs;
         tryEmit();
       }, onError: (Object err, StackTrace stack) {
+        debugPrint('[Reports] products stream (admin) ERROR: $err\n$stack');
         if (!controller.isClosed) controller.addError(err, stack);
       });
 
@@ -249,9 +253,7 @@ class FirestoreServiceImpl implements FirestoreService {
         costs = {for (final doc in snap.docs) doc.id: doc.data()};
         tryEmit();
       }, onError: (Object err, StackTrace stack) {
-        // product_costs errors should not block the merged stream
-        debugPrint('product_costs stream error (non-fatal): $err');
-        // Still tryEmit with whatever we have
+        debugPrint('[Reports] product_costs stream error (non-fatal): $err');
         tryEmit();
       });
 
@@ -333,16 +335,21 @@ class FirestoreServiceImpl implements FirestoreService {
         }
       }
 
+      debugPrint('[Reports] admin sales: subscribing to /sales (orderBy timestamp DESC)');
       final sub1 = _db
           .collection('sales')
           .orderBy('timestamp', descending: true)
           .snapshots()
           .listen((snap) {
-            saleDocs = snap.docs;
-            emitMerged();
-          }, onError: (Object err, StackTrace stack) {
-            if (!controller.isClosed) controller.addError(err, stack);
-          });
+        if (saleDocs == null) {
+          debugPrint('[Reports] admin sales: first snapshot received (${snap.docs.length} docs)');
+        }
+        saleDocs = snap.docs;
+        emitMerged();
+      }, onError: (Object err, StackTrace stack) {
+        debugPrint('[Reports] admin sales ERROR: $err\n$stack');
+        if (!controller.isClosed) controller.addError(err, stack);
+      });
 
       final sub2 = _db.collection('sales_costs').snapshots().listen((snap) {
         costs = {for (final doc in snap.docs) doc.id: doc.data()};
@@ -350,7 +357,7 @@ class FirestoreServiceImpl implements FirestoreService {
       }, onError: (Object err, StackTrace stack) {
         // sales_costs errors should not block the merged stream;
         // sales without cost data can still emit
-        debugPrint('sales_costs stream error (non-fatal): $err');
+        debugPrint('[Reports] sales_costs stream error (non-fatal): $err');
         emitMerged();
       });
 
@@ -403,12 +410,14 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<CustomerPayment>> getCustomerPaymentsStream() {
+    debugPrint('[Reports] customer_payments: subscribing');
     _paymentsStream ??= CachedReplayStream<List<CustomerPayment>>(
       _db
           .collection('customer_payments')
           .orderBy('timestamp', descending: true)
           .snapshots()
           .map((snapshot) {
+            debugPrint('[Reports] customer_payments stream: received ${snapshot.docs.length} docs');
             return snapshot.docs
                 .map((doc) => CustomerPayment.fromMap(doc.data(), doc.id))
                 .toList();
@@ -419,8 +428,10 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<Staff>> getStaffStream() {
+    debugPrint('[Reports] staff stream: subscribing');
     _staffStream ??= CachedReplayStream<List<Staff>>(
       _db.collection('staff').snapshots().map((snapshot) {
+        debugPrint('[Reports] staff stream: received ${snapshot.docs.length} docs');
         return snapshot.docs
             .map((doc) => Staff.fromMap(doc.data(), doc.id))
             .toList();
@@ -458,6 +469,7 @@ class FirestoreServiceImpl implements FirestoreService {
   Stream<List<Expense>> getExpensesStream() {
     _expensesStream ??= CachedReplayStream<List<Expense>>(
       _db.collection('expenses').snapshots().map((snapshot) {
+        debugPrint('[Reports] expenses stream: received ${snapshot.docs.length} docs');
         return snapshot.docs
             .map((doc) => Expense.fromMap(doc.data(), doc.id))
             .toList();
