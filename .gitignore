@@ -109,9 +109,13 @@ pnpm-debug.log*
 next-env.d.ts
 
 # Android Signing Secrets
+key.properties
 **/key.properties
 **/*.keystore
+*.jks
 **/*.jks
 
-# Executables
+# Binary & Executables
 *.exe
+*.obj
+

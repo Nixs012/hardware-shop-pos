@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' show PaperSize;
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 
 import '../../models/failed_sale.dart';
 import '../../models/staff.dart';
@@ -68,7 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
         return;
       }
-      final selected = await showDialog<BluetoothPrinterDevice>(
+      final selected = await showDialog<BluetoothInfo>(
         context: context,
         builder: (context) => SimpleDialog(
           title: const Text('Select Bluetooth Printer'),
@@ -76,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               .map(
                 (printer) => SimpleDialogOption(
                   onPressed: () => Navigator.pop(context, printer),
-                  child: Text('${printer.name}\n${printer.address}'),
+                  child: Text('${printer.name}\n${printer.macAdress}'),
                 ),
               )
               .toList(),

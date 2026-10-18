@@ -37,7 +37,8 @@ dependencies:
   firebase_core: ^4.14.0
   cloud_firestore: ^6.9.0
   firebase_auth: ^6.6.0
-  unified_esc_pos_printer: ^3.4.0
+  print_bluetooth_thermal: ^1.2.5
+  esc_pos_utils_plus: ^2.0.4
   uuid: ^4.6.0
   shared_preferences: ^2.5.3
   connectivity_plus: ^7.3.2

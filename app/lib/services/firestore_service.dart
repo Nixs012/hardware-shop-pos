@@ -58,7 +58,7 @@ class FirestoreService {
         final products = snapshot.docs
             .map((doc) => Product.fromMap(doc.data(), doc.id))
             .toList();
-        SyncService.instance.cacheProducts(products);
+        SyncService.instance.cacheProducts(products, isAdmin: false);
         if (!controller.isClosed) {
           controller.add(products);
         }
@@ -82,7 +82,7 @@ class FirestoreService {
         final costData = costs[doc.id];
         return Product.fromMap(doc.data(), doc.id, costData);
       }).toList();
-      SyncService.instance.cacheProducts(products);
+      SyncService.instance.cacheProducts(products, isAdmin: true);
       if (!controller.isClosed) {
         controller.add(products);
       }

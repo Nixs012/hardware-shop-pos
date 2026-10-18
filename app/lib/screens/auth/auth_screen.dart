@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
+import '../../services/sync_service.dart';
 import '../main_layout.dart';
 import '../../utils/theme.dart';
 
@@ -41,7 +42,11 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
       
       if (staff != null) {
-        // Role check can happen here or globally.
+        // If this is a cashier, ensure no leftover cost data is in the local product cache
+        if (staff.role.toLowerCase() != 'admin') {
+          await SyncService.instance.clearCachedCostData();
+        }
+        if (!mounted) return;
         // Navigate to the main app layout.
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => MainLayout(currentStaff: staff)),

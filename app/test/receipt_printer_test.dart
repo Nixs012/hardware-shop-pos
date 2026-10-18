@@ -1,6 +1,6 @@
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' show PaperSize;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 import 'package:app/models/sale.dart';
 import 'package:app/services/printer_service.dart';
 

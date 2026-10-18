@@ -45,9 +45,10 @@ abstract class SyncStorage {
   Future<void> removeNeedsReview(String saleId);
   Future<List<QueuedSale>> getNeedsReviewSales();
 
-  Future<void> cacheProducts(List<Product> products);
+  Future<void> cacheProducts(List<Product> products, {bool isAdmin = false});
   Future<List<Product>> getCachedProducts();
   Future<void> updateCachedProductStock(String productId, double delta);
+  Future<void> clearCachedCostData();
 }
 
 class HiveSyncStorage implements SyncStorage {
@@ -122,14 +123,17 @@ class HiveSyncStorage implements SyncStorage {
   }
 
   @override
-  Future<void> cacheProducts(List<Product> products) async {
+  Future<void> cacheProducts(List<Product> products, {bool isAdmin = false}) async {
     final map = <String, Map<String, dynamic>>{};
     for (final product in products) {
-      map[product.id] = {
-        ...product.toMap(),
-        'cost_price': product.costPrice,
-        'cost_price_estimated': product.costPriceEstimated,
-      };
+      final entry = <String, dynamic>{...product.toMap()};
+      if (isAdmin) {
+        // Admins get the full cost snapshot in the local cache
+        entry['cost_price'] = product.costPrice;
+        entry['cost_price_estimated'] = product.costPriceEstimated;
+      }
+      // Cashier devices: cost fields are intentionally omitted
+      map[product.id] = entry;
     }
     await _productsBox.putAll(map);
   }
@@ -160,6 +164,19 @@ class HiveSyncStorage implements SyncStorage {
       await _productsBox.put(productId, map);
     } catch (e) {
       debugPrint('Error updating cached product stock: $e');
+    }
+  }
+  @override
+  Future<void> clearCachedCostData() async {
+    final keys = _productsBox.keys.toList();
+    for (final key in keys) {
+      final raw = _productsBox.get(key);
+      if (raw != null) {
+        final m = Map<String, dynamic>.from(raw);
+        m.remove('cost_price');
+        m.remove('cost_price_estimated');
+        await _productsBox.put(key, m);
+      }
     }
   }
 }
@@ -215,13 +232,14 @@ class MemorySyncStorage implements SyncStorage {
   }
 
   @override
-  Future<void> cacheProducts(List<Product> products) async {
+  Future<void> cacheProducts(List<Product> products, {bool isAdmin = false}) async {
     for (final p in products) {
-      _products[p.id] = {
-        ...p.toMap(),
-        'cost_price': p.costPrice,
-        'cost_price_estimated': p.costPriceEstimated,
-      };
+      final entry = <String, dynamic>{...p.toMap()};
+      if (isAdmin) {
+        entry['cost_price'] = p.costPrice;
+        entry['cost_price_estimated'] = p.costPriceEstimated;
+      }
+      _products[p.id] = entry;
     }
   }
 
@@ -239,7 +257,16 @@ class MemorySyncStorage implements SyncStorage {
     final current = (m['quantity_on_hand'] as num? ?? 0).toDouble();
     m['quantity_on_hand'] = current + delta;
   }
+
+  @override
+  Future<void> clearCachedCostData() async {
+    for (final m in _products.values) {
+      m.remove('cost_price');
+      m.remove('cost_price_estimated');
+    }
+  }
 }
+
 
 typedef SyncSaleCallback = Future<void> Function(QueuedSale sale);
 
@@ -538,8 +565,14 @@ class SyncService {
     }
   }
 
-  Future<void> cacheProducts(List<Product> products) async {
-    await _storage.cacheProducts(products);
+  Future<void> cacheProducts(List<Product> products, {bool isAdmin = false}) async {
+    await _storage.cacheProducts(products, isAdmin: isAdmin);
+  }
+
+  /// Strips cost fields from any cached products on the device.
+  /// Call this on cashier login to ensure no leftover admin data persists.
+  Future<void> clearCachedCostData() async {
+    await _storage.clearCachedCostData();
   }
 
   Future<List<Product>> getCachedProducts() async {

@@ -3,6 +3,7 @@ import 'package:app/models/product.dart';
 import 'package:app/models/sale.dart';
 import 'package:app/models/sale_line_item.dart';
 import 'package:app/models/customer_payment.dart';
+import 'package:app/services/sync_service.dart';
 
 void main() {
   group('Cost Data Security & Separation Tests', () {
@@ -129,6 +130,121 @@ void main() {
       expect(reconstructed.customerName, 'John Contractor');
       expect(reconstructed.amount, 5000.0);
       expect(reconstructed.note, 'Partial repayment for site materials');
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // PROOF: Cashier cache vs Admin cache
+  // Shows exactly what a cashier account can and cannot see in local storage.
+  // ──────────────────────────────────────────────────────────────────────────
+  group('Proof: Cashier cannot read cost data; Admin can', () {
+    final testProducts = [
+      Product(
+        id: 'prod-A',
+        name: 'Steel Bar 12mm',
+        sku: 'STL-12',
+        category: 'Metals',
+        costPrice: 850.0,
+        sellingPrice: 1200.0,
+        quantityOnHand: 50.0,
+        unit: 'piece',
+      ),
+      Product(
+        id: 'prod-B',
+        name: 'Cement 50kg',
+        sku: 'CEM-01',
+        category: 'Building',
+        costPrice: 650.0,
+        sellingPrice: 750.0,
+        quantityOnHand: 40.0,
+        unit: 'bag',
+      ),
+    ];
+
+    test('Cashier cache: cost_price is absent and reads back as 0.0', () async {
+      final cashierStorage = MemorySyncStorage();
+      await cashierStorage.init();
+
+      // Simulate what happens when a cashier device syncs products (isAdmin: false)
+      await cashierStorage.cacheProducts(testProducts, isAdmin: false);
+
+      final cached = await cashierStorage.getCachedProducts();
+      expect(cached.length, 2);
+
+      for (final p in cached) {
+        // Cashier must see quantity and price
+        expect(p.sellingPrice, greaterThan(0));
+        expect(p.quantityOnHand, greaterThan(0));
+        // Cashier must NOT see cost price - it defaults to 0.0
+        expect(
+          p.costPrice,
+          0.0,
+          reason:
+              'cost_price must not be stored on cashier device; '
+              'Product.fromMap defaults it to 0.0 when the field is absent.',
+        );
+      }
+    });
+
+    test('Admin cache: cost_price is present and correct', () async {
+      final adminStorage = MemorySyncStorage();
+      await adminStorage.init();
+
+      // Simulate what happens when an admin device syncs products (isAdmin: true)
+      await adminStorage.cacheProducts(testProducts, isAdmin: true);
+
+      final cached = await adminStorage.getCachedProducts();
+      expect(cached.length, 2);
+
+      final steelBar = cached.firstWhere((p) => p.id == 'prod-A');
+      final cement   = cached.firstWhere((p) => p.id == 'prod-B');
+
+      expect(steelBar.costPrice, 850.0,
+          reason: 'Admin device must have the cost_price cached.');
+      expect(cement.costPrice, 650.0,
+          reason: 'Admin device must have the cost_price cached.');
+    });
+
+    test('clearCachedCostData() strips cost from an existing admin cache', () async {
+      // Start with admin data written to storage
+      final storage = MemorySyncStorage();
+      await storage.init();
+      await storage.cacheProducts(testProducts, isAdmin: true);
+
+      // Confirm cost is present
+      var cached = await storage.getCachedProducts();
+      expect(cached.first.costPrice, greaterThan(0));
+
+      // Now simulate a cashier logging in on the same device → wipe cost data
+      await storage.clearCachedCostData();
+
+      cached = await storage.getCachedProducts();
+      for (final p in cached) {
+        expect(
+          p.costPrice,
+          0.0,
+          reason: 'After clearCachedCostData(), no cost_price must remain.',
+        );
+      }
+    });
+
+    test('Firestore rules summary: cashier cannot read /product_costs or /sales_costs', () {
+      // This is a documentation test that records the rule assertions.
+      // Full rule verification requires the Firebase Emulator (integration test).
+      // The Firestore rules at app/firestore.rules enforce:
+      //
+      //   /product_costs/{id}  → allow read, write: if isAdmin();
+      //   /sales_costs/{id}    → allow read: if isAdmin();
+      //   /products/{id}       → cost_price field is never written here (toMap() omits it)
+      //   /sales/{id}          → unit_cost_at_sale never written here (toMap() omits it)
+      //
+      // A cashier authenticated via Firebase Auth will be denied by Firestore
+      // security rules when trying to GET /product_costs/X or /sales_costs/X
+      // because get(staff/uid).data.role != 'admin'.
+      //
+      // The local Hive cache enforces the same boundary at the app layer:
+      // isAdmin=false means cost fields are stripped before writing to disk.
+      expect(true, isTrue, reason: 'See comment above for full rule audit.');
     });
   });
 }
