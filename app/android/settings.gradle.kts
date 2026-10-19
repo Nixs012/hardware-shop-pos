@@ -1,4 +1,17 @@
 pluginManagement {
+    // Fix AndroidLocationsException by clearing ANDROID_PREFS_ROOT system property and environment variable
+    System.clearProperty("ANDROID_PREFS_ROOT")
+    try {
+        val env = System.getenv()
+        val field = env.javaClass.getDeclaredField("m")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val map = field.get(env) as MutableMap<String, String>
+        map.remove("ANDROID_PREFS_ROOT")
+    } catch (e: Exception) {
+        // Ignore if not supported on this JVM
+    }
+
     val flutterSdkPath =
         run {
             val properties = java.util.Properties()

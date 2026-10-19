@@ -5,6 +5,7 @@ import '../../models/customer_payment.dart';
 import '../../models/sale.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/credit_balance.dart';
 import '../../utils/theme.dart';
 import '../../widgets/error_display_widgets.dart';
 
@@ -37,47 +38,16 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
 
   /// Computes outstanding balance per customer based on ALL credit sales
   /// minus ALL repayments across all time.
-  Map<String, _CustomerBalance> _computeBalances(
+  ///
+  /// Delegates to the shared [computeCustomerBalances] function so the Credit
+  /// screen and the Reports credit card always agree.
+  Map<String, CustomerCreditBalance> _computeBalances(
     List<Sale> sales,
     List<CustomerPayment> payments,
-  ) {
-    final balances = <String, _CustomerBalance>{};
+  ) =>
+      computeCustomerBalances(sales, payments);
 
-    // Add credit sales
-    for (final sale in sales) {
-      if (sale.paymentMethod == 'Credit' &&
-          sale.customerName != null &&
-          sale.customerName!.isNotEmpty) {
-        final key = sale.customerName!;
-        final existing = balances[key] ??
-            _CustomerBalance(
-              customerName: sale.customerName!,
-              customerPhone: sale.customerPhone ?? '',
-              totalCreditSales: 0,
-              totalRepayments: 0,
-            );
-        balances[key] = existing
-            ..totalCreditSales += sale.totalAmount;
-      }
-    }
-
-    // Add repayments
-    for (final payment in payments) {
-      final key = payment.customerName;
-      final existing = balances[key] ??
-          _CustomerBalance(
-            customerName: payment.customerName,
-            customerPhone: payment.customerPhone,
-            totalCreditSales: 0,
-            totalRepayments: 0,
-          );
-      balances[key] = existing..totalRepayments += payment.amount;
-    }
-
-    return balances;
-  }
-
-  Future<void> _showRecordRepaymentDialog(_CustomerBalance customer) async {
+  Future<void> _showRecordRepaymentDialog(CustomerCreditBalance customer) async {
     final amountController = TextEditingController();
     final noteController = TextEditingController();
 
@@ -408,7 +378,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
     );
   }
 
-  Widget _buildSummaryCard(List<_CustomerBalance> balances) {
+  Widget _buildSummaryCard(List<CustomerCreditBalance> balances) {
     final totalOutstanding = balances.fold<double>(
         0, (sum, b) => sum + b.outstanding);
 
@@ -470,7 +440,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
 
   void _showCustomerDetailDialog(
     BuildContext ctx,
-    _CustomerBalance customer,
+    CustomerCreditBalance customer,
     List<CustomerPayment> allPayments, {
     required List<Sale> sales,
   }) async {
@@ -626,18 +596,3 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
   }
 }
 
-class _CustomerBalance {
-  final String customerName;
-  final String customerPhone;
-  double totalCreditSales;
-  double totalRepayments;
-
-  _CustomerBalance({
-    required this.customerName,
-    required this.customerPhone,
-    required this.totalCreditSales,
-    required this.totalRepayments,
-  });
-
-  double get outstanding => totalCreditSales - totalRepayments;
-}

@@ -1,9 +1,13 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/models/expense.dart';
 import 'package:app/models/product.dart';
 import 'package:app/models/sale.dart';
 import 'package:app/models/sale_line_item.dart';
 import 'package:app/models/customer_payment.dart';
+import 'package:app/utils/credit_balance.dart';
+import 'package:app/services/reports_repository.dart';
+import 'mock_firestore_service.dart';
 
 /// Helper class for testing credit balance computation logic.
 class _TestCustomerBalance {
@@ -481,6 +485,38 @@ void main() {
 
       expect(balances['Customer A']!.outstanding, equals(1000.0));
       expect(balances['Customer B']!.outstanding, equals(2000.0));
+    });
+  });
+
+  group('Requirement 2 & 4 - Shared Outstanding Balance & Tab Switching Tests', () {
+    test('computeOutstandingBalance returns correct difference', () {
+      expect(computeOutstandingBalance(creditSales: 10000.0, repayments: 3500.0), equals(6500.0));
+      expect(computeOutstandingBalance(creditSales: 5000.0, repayments: 5000.0), equals(0.0));
+    });
+
+    test('ReportsRepository caches queries and switching tabs does not re-query streams', () async {
+      ReportsRepository.resetSessionForTesting();
+      final mockService = MockFirestoreService();
+      final repo = ReportsRepository.acquire(
+        service: mockService,
+        isAdmin: true,
+        staffId: null,
+      );
+      repo.start();
+
+      expect(mockService.getSalesStreamCalls, equals(1));
+      expect(mockService.getProductsStreamCalls, equals(1));
+
+      // Request data for multiple tabs / queries — should be served from cache without extra stream calls
+      final range = DateTimeRange(start: DateTime(2026, 1, 1), end: DateTime(2026, 12, 31));
+      repo.dataFor(range: range, staffId: 'All', categoryId: 'All');
+      repo.dataFor(range: range, staffId: 'All', categoryId: 'All'); // cached
+
+      expect(mockService.getSalesStreamCalls, equals(1));
+      expect(mockService.getProductsStreamCalls, equals(1));
+
+      ReportsRepository.resetSessionForTesting();
+      mockService.dispose();
     });
   });
 }

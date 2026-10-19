@@ -58,39 +58,36 @@ class CachedReplayStream<T> {
     );
   }
 
-  /// Returns a broadcast stream that replays the last value to new subscribers.
+  /// Returns a stream that replays the last value (or error) to every new
+  /// subscriber *synchronously on subscription*.
+  ///
+  /// This uses [Stream.multi] so each listener gets its own private stream
+  /// with an immediate replay. The previous implementation replayed via a
+  /// microtask into a throw-away broadcast controller: lazily built widgets
+  /// (e.g. TabBarView pages, which are only built when their tab is opened)
+  /// subscribed AFTER the microtask had fired, the broadcast controller
+  /// dropped the value because it had no listener, and the widget waited
+  /// forever. It also leaked one forwarder subscription per call.
   Stream<T> get stream {
     if (_isDisposed) {
       return const Stream.empty();
     }
-    // Use asBroadcastStream to support multiple listeners
-    // and manually replay the cached value
-    final replayController = StreamController<T>.broadcast();
-
-    // Schedule replay in a microtask so listeners attach first
-    scheduleMicrotask(() {
-      if (_isDisposed || replayController.isClosed) return;
+    return Stream<T>.multi((controller) {
+      // Synchronous replay for this listener.
       if (_hasError && _lastError != null) {
-        replayController.addError(_lastError!, _lastErrorStack);
+        controller.addError(_lastError!, _lastErrorStack);
       } else if (_lastValue != null) {
-        replayController.add(_lastValue as T);
+        controller.add(_lastValue as T);
       }
+      // Forward subsequent events from the main controller.
+      final forwarder = _controller.stream.listen(
+        controller.add,
+        onError: (Object err, StackTrace? stack) =>
+            controller.addError(err, stack),
+        onDone: controller.close,
+      );
+      controller.onCancel = forwarder.cancel;
     });
-
-    // Forward subsequent events from the main controller
-    _controller.stream.listen(
-      (data) {
-        if (!replayController.isClosed) replayController.add(data);
-      },
-      onError: (Object err, StackTrace? stack) {
-        if (!replayController.isClosed) replayController.addError(err, stack);
-      },
-      onDone: () {
-        if (!replayController.isClosed) replayController.close();
-      },
-    );
-
-    return replayController.stream;
   }
 
   void dispose() {
@@ -119,6 +116,12 @@ abstract class FirestoreService {
   Stream<List<Staff>> getStaffStream();
 
   Stream<List<Expense>> getExpensesStream();
+
+  /// Drops the cached report streams (sales, products, expenses, customer
+  /// payments) so the next call returns a fresh Firestore subscription.
+  /// Screens holding older streams keep their last emitted data and recover
+  /// on their next rebuild. Used by the Reports "Retry" action.
+  void resetReportsStreams();
 
   Future<void> addProduct(Product product);
   Future<void> updateProduct(Product product);
@@ -478,5 +481,24 @@ class FirestoreServiceImpl implements FirestoreService {
       }),
     );
     return _expensesStream!.stream;
+  }
+
+  @override
+  void resetReportsStreams() {
+    debugPrint(
+      '[FirestoreService] resetReportsStreams: dropping cached report streams',
+    );
+    for (final cached in _saleStreams.values) {
+      cached.dispose();
+    }
+    _saleStreams.clear();
+    for (final cached in _productStreams.values) {
+      cached.dispose();
+    }
+    _productStreams.clear();
+    _paymentsStream?.dispose();
+    _paymentsStream = null;
+    _expensesStream?.dispose();
+    _expensesStream = null;
   }
 }

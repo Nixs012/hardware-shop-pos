@@ -8,46 +8,103 @@ import 'package:app/models/sale.dart';
 import 'package:app/models/staff.dart';
 import 'package:app/services/firestore_service.dart';
 
-/// A mock [FirestoreService] that returns empty streams and no-op futures,
+/// A simple replaying stream (BehaviorSubject pattern) used by the mock so
+/// subscribers receive the latest value even if they subscribe after it was
+/// seeded. Mirrors the production [CachedReplayStream] semantics.
+class _ReplayStream<T> {
+  final StreamController<T> _controller = StreamController<T>.broadcast();
+  T? _last;
+  bool _hasValue = false;
+
+  _ReplayStream([T? initial]) {
+    if (initial != null) {
+      _last = initial;
+      _hasValue = true;
+    }
+  }
+
+  Stream<T> get stream => Stream<T>.multi((controller) {
+        if (_hasValue) controller.add(_last as T);
+        final forwarder = _controller.stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: controller.close,
+        );
+        controller.onCancel = forwarder.cancel;
+      });
+
+  void add(T value) {
+    _last = value;
+    _hasValue = true;
+    if (!_controller.isClosed) _controller.add(value);
+  }
+
+  void close() => _controller.close();
+}
+
+/// A mock [FirestoreService] that returns replaying streams and no-op futures,
 /// for use in widget tests where no real Firebase backend is available.
+///
+/// Call counters let tests assert that streams are subscribed exactly once
+/// (e.g. switching Reports tabs must not reload anything).
 class MockFirestoreService implements FirestoreService {
-  final StreamController<List<Product>> _productsController =
-      StreamController<List<Product>>.broadcast();
-  final StreamController<List<Sale>> _salesController =
-      StreamController<List<Sale>>.broadcast();
-  final StreamController<List<CustomerPayment>> _paymentsController =
-      StreamController<List<CustomerPayment>>.broadcast();
-  final StreamController<List<Staff>> _staffController =
-      StreamController<List<Staff>>.broadcast();
-  final StreamController<List<Expense>> _expensesController =
-      StreamController<List<Expense>>.broadcast();
+  late final _ReplayStream<List<Product>> _products;
+  late final _ReplayStream<List<Sale>> _sales;
+  late final _ReplayStream<List<CustomerPayment>> _payments;
+  late final _ReplayStream<List<Staff>> _staff;
+  late final _ReplayStream<List<Expense>> _expenses;
 
   MockFirestoreService() {
-    // Emit empty lists initially so StreamBuilders don't hang
-    _productsController.add([]);
-    _salesController.add([]);
-    _paymentsController.add([]);
-    _staffController.add([]);
-    _expensesController.add([]);
+    // Emit empty lists initially so consumers never hang on first load.
+    _products = _ReplayStream<List<Product>>([]);
+    _sales = _ReplayStream<List<Sale>>([]);
+    _payments = _ReplayStream<List<CustomerPayment>>([]);
+    _staff = _ReplayStream<List<Staff>>([]);
+    _expenses = _ReplayStream<List<Expense>>([]);
+  }
+
+  // Call counters for assertions.
+  int getProductsStreamCalls = 0;
+  int getSalesStreamCalls = 0;
+  int getCustomerPaymentsStreamCalls = 0;
+  int getStaffStreamCalls = 0;
+  int getExpensesStreamCalls = 0;
+  int resetReportsStreamsCalls = 0;
+
+  @override
+  Stream<List<Product>> getProductsStream({bool isAdmin = false}) {
+    getProductsStreamCalls++;
+    return _products.stream;
   }
 
   @override
-  Stream<List<Product>> getProductsStream({bool isAdmin = false}) =>
-      _productsController.stream;
+  Stream<List<Sale>> getSalesStream({bool isAdmin = false, String? staffId}) {
+    getSalesStreamCalls++;
+    return _sales.stream;
+  }
 
   @override
-  Stream<List<Sale>> getSalesStream({bool isAdmin = false, String? staffId}) =>
-      _salesController.stream;
+  Stream<List<CustomerPayment>> getCustomerPaymentsStream() {
+    getCustomerPaymentsStreamCalls++;
+    return _payments.stream;
+  }
 
   @override
-  Stream<List<CustomerPayment>> getCustomerPaymentsStream() =>
-      _paymentsController.stream;
+  Stream<List<Staff>> getStaffStream() {
+    getStaffStreamCalls++;
+    return _staff.stream;
+  }
 
   @override
-  Stream<List<Staff>> getStaffStream() => _staffController.stream;
+  Stream<List<Expense>> getExpensesStream() {
+    getExpensesStreamCalls++;
+    return _expenses.stream;
+  }
 
   @override
-  Stream<List<Expense>> getExpensesStream() => _expensesController.stream;
+  void resetReportsStreams() {
+    resetReportsStreamsCalls++;
+  }
 
   // No-op: the mock doesn't filter by auth UID, so this is intentionally ignored.
   void setCashierAuthUid(String? uid) {}
@@ -89,31 +146,21 @@ class MockFirestoreService implements FirestoreService {
   Future<void> retryFailedSale(FailedSaleRecord record) async {}
 
   void dispose() {
-    _productsController.close();
-    _salesController.close();
-    _paymentsController.close();
-    _staffController.close();
-    _expensesController.close();
+    _products.close();
+    _sales.close();
+    _payments.close();
+    _staff.close();
+    _expenses.close();
   }
 
   // Helpers to seed data into the mock streams for testing
-  void setProducts(List<Product> products) {
-    if (!_productsController.isClosed) _productsController.add(products);
-  }
+  void setProducts(List<Product> products) => _products.add(products);
 
-  void setSales(List<Sale> sales) {
-    if (!_salesController.isClosed) _salesController.add(sales);
-  }
+  void setSales(List<Sale> sales) => _sales.add(sales);
 
-  void setStaff(List<Staff> staff) {
-    if (!_staffController.isClosed) _staffController.add(staff);
-  }
+  void setStaff(List<Staff> staff) => _staff.add(staff);
 
-  void setExpenses(List<Expense> expenses) {
-    if (!_expensesController.isClosed) _expensesController.add(expenses);
-  }
+  void setExpenses(List<Expense> expenses) => _expenses.add(expenses);
 
-  void setPayments(List<CustomerPayment> payments) {
-    if (!_paymentsController.isClosed) _paymentsController.add(payments);
-  }
+  void setPayments(List<CustomerPayment> payments) => _payments.add(payments);
 }
