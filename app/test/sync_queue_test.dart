@@ -97,7 +97,7 @@ void main() {
       final syncService = SyncService.custom(
         storage: storage,
         initialOnline: true,
-        syncSale: (queuedSale) async {
+        syncSale: (queuedSale, [String shopId = '']) async {
           syncedSales.add(queuedSale.sale.id);
         },
       );
@@ -115,7 +115,7 @@ void main() {
       final serverDatabase = <String, Sale>{};
       int serverWriteAttempts = 0;
 
-      Future<void> mockServerSync(QueuedSale queuedSale) async {
+      Future<void> mockServerSync(QueuedSale queuedSale, [String? shopId]) async {
         serverWriteAttempts++;
         final saleId = queuedSale.sale.id;
 
@@ -175,7 +175,7 @@ void main() {
       final syncService = SyncService.custom(
         storage: storage,
         initialOnline: true,
-        syncSale: (queuedSale) async {
+        syncSale: (queuedSale, [String shopId = '']) async {
           syncAttempts++;
           throw Exception('Simulated permanent sync error');
         },
@@ -185,7 +185,6 @@ void main() {
 
       // First attempt during queueSale
       await syncService.queueSale(sale);
-      await syncService.drainQueue();
       expect(syncAttempts, equals(1));
 
       // Attempt retries until reaching maxRetries (5)
@@ -221,7 +220,7 @@ void main() {
       final syncService = SyncService.custom(
         storage: storage,
         initialOnline: true,
-        syncSale: (queuedSale) async {
+        syncSale: (queuedSale, [String shopId = '']) async {
           if (!shouldSucceed) {
             throw Exception('Initial failure');
           }
@@ -253,7 +252,7 @@ void main() {
       final syncService = SyncService.custom(
         storage: storage,
         initialOnline: false,
-        syncSale: (queuedSale) async {
+        syncSale: (queuedSale, [String shopId = '']) async {
           processedOrder.add(queuedSale.sale.id);
         },
       );

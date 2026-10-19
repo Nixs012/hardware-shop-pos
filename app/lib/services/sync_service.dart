@@ -59,10 +59,16 @@ abstract class SyncStorage {
 }
 
 class HiveSyncStorage implements SyncStorage {
-  static const String pendingBoxName = 'pending_sales';
-  static const String needsReviewBoxName = 'needs_review_sales';
-  static const String productsBoxName = 'cached_products';
-  static const String pendingPaymentsBoxName = 'pending_payments';
+  String _shopId = 'default_shop';
+
+  void setShopId(String shopId) {
+    _shopId = shopId;
+  }
+
+  String get _pendingBoxName => 'pending_sales_$_shopId';
+  String get _needsReviewBoxName => 'needs_review_sales_$_shopId';
+  String get _productsBoxName => 'cached_products_$_shopId';
+  String get _pendingPaymentsBoxName => 'pending_payments_$_shopId';
 
   late Box<Map> _pendingBox;
   late Box<Map> _needsReviewBox;
@@ -71,10 +77,19 @@ class HiveSyncStorage implements SyncStorage {
 
   @override
   Future<void> init() async {
-    _pendingBox = await Hive.openBox<Map>(pendingBoxName);
-    _needsReviewBox = await Hive.openBox<Map>(needsReviewBoxName);
-    _productsBox = await Hive.openBox<Map>(productsBoxName);
-    _pendingPaymentsBox = await Hive.openBox<Map>(pendingPaymentsBoxName);
+    _pendingBox = await Hive.openBox<Map>(_pendingBoxName);
+    _needsReviewBox = await Hive.openBox<Map>(_needsReviewBoxName);
+    _productsBox = await Hive.openBox<Map>(_productsBoxName);
+    _pendingPaymentsBox = await Hive.openBox<Map>(_pendingPaymentsBoxName);
+  }
+
+  Future<void> clearLocalCaches() async {
+    try {
+      if (_pendingBox.isOpen) await _pendingBox.clear();
+      if (_needsReviewBox.isOpen) await _needsReviewBox.clear();
+      if (_productsBox.isOpen) await _productsBox.clear();
+      if (_pendingPaymentsBox.isOpen) await _pendingPaymentsBox.clear();
+    } catch (_) {}
   }
 
   @override
@@ -138,11 +153,9 @@ class HiveSyncStorage implements SyncStorage {
     for (final product in products) {
       final entry = <String, dynamic>{...product.toMap()};
       if (isAdmin) {
-        // Admins get the full cost snapshot in the local cache
         entry['cost_price'] = product.costPrice;
         entry['cost_price_estimated'] = product.costPriceEstimated;
       }
-      // Cashier devices: cost fields are intentionally omitted
       map[product.id] = entry;
     }
     await _productsBox.putAll(map);
@@ -176,6 +189,7 @@ class HiveSyncStorage implements SyncStorage {
       debugPrint('Error updating cached product stock: $e');
     }
   }
+
   @override
   Future<void> clearCachedCostData() async {
     final keys = _productsBox.keys.toList();
@@ -189,8 +203,6 @@ class HiveSyncStorage implements SyncStorage {
       }
     }
   }
-
-  // --- Customer Payment sync (HiveSyncStorage) ---
 
   @override
   Future<void> savePendingPayment(QueuedPayment payment) async {
@@ -304,8 +316,6 @@ class MemorySyncStorage implements SyncStorage {
     }
   }
 
-  // --- Customer Payment sync (MemorySyncStorage) ---
-
   @override
   Future<void> savePendingPayment(QueuedPayment payment) async {
     _pendingPayments[payment.payment.id] = payment.toMap();
@@ -326,8 +336,8 @@ class MemorySyncStorage implements SyncStorage {
   }
 }
 
-
-typedef SyncSaleCallback = Future<void> Function(QueuedSale sale);
+typedef SyncSaleCallback = Future<void> Function(QueuedSale sale, String shopId);
+typedef SyncPaymentCallback = Future<void> Function(QueuedPayment payment, String shopId);
 
 class SyncService {
   static final SyncService _instance = SyncService._internal();
@@ -336,6 +346,7 @@ class SyncService {
   final SyncStorage _storage;
   final Connectivity? _connectivity;
   final SyncSaleCallback? _customSyncSale;
+  final SyncPaymentCallback? _customSyncPayment;
 
   final StreamController<SyncStatus> _statusController =
       StreamController<SyncStatus>.broadcast();
@@ -350,21 +361,24 @@ class SyncService {
     SyncStorage? storage,
     Connectivity? connectivity,
     SyncSaleCallback? syncSale,
+    SyncPaymentCallback? syncPayment,
   })  : _storage = storage ?? HiveSyncStorage(),
         _connectivity = connectivity ?? Connectivity(),
-        _customSyncSale = syncSale;
+        _customSyncSale = syncSale,
+        _customSyncPayment = syncPayment;
 
-  /// Visible for testing to instantiate isolated pure Dart instances
   factory SyncService.custom({
     required SyncStorage storage,
     Connectivity? connectivity,
     SyncSaleCallback? syncSale,
+    SyncPaymentCallback? syncPayment,
     bool initialOnline = false,
   }) {
     final s = SyncService._internal(
       storage: storage,
       connectivity: connectivity,
       syncSale: syncSale,
+      syncPayment: syncPayment,
     );
     s._isOnline = initialOnline;
     return s;
@@ -382,7 +396,10 @@ class SyncService {
   int get pendingCount => _pendingCount;
   bool get isSyncing => _isSyncing;
 
-  Future<void> init() async {
+  Future<void> init([String shopId = 'default_shop']) async {
+    if (_storage is HiveSyncStorage) {
+      (_storage as HiveSyncStorage).setShopId(shopId);
+    }
     await _storage.init();
     _pendingCount = await _storage.getPendingCount();
 
@@ -392,26 +409,38 @@ class SyncService {
         _isOnline = _checkIsOnline(initial);
       } catch (e) {
         _isOnline = false;
-        debugPrint('Connectivity check failed: $e');
       }
 
-      _connectivitySubscription =
+      _connectivitySubscription ??=
           _connectivity.onConnectivityChanged.listen((results) {
         final onlineNow = _checkIsOnline(results);
         final changed = onlineNow != _isOnline;
         _isOnline = onlineNow;
         _notifyStatus();
         if (changed && _isOnline) {
-          unawaited(drainQueue());
+          unawaited(drainQueue('default_shop'));
         }
       });
     }
 
     _notifyStatus();
+  }
 
-    if (_isOnline) {
-      unawaited(drainQueue());
+  Future<void> switchShop(String shopId) async {
+    if (_storage is HiveSyncStorage) {
+      (_storage as HiveSyncStorage).setShopId(shopId);
+      await _storage.init();
     }
+    _pendingCount = await _storage.getPendingCount();
+    _notifyStatus();
+  }
+
+  Future<void> clearLocalCaches() async {
+    if (_storage is HiveSyncStorage) {
+      await (_storage as HiveSyncStorage).clearLocalCaches();
+    }
+    _pendingCount = 0;
+    _notifyStatus();
   }
 
   void setOnlineForTesting(bool online) {
@@ -436,13 +465,13 @@ class SyncService {
 
   Duration calculateBackoff(int retryCount) {
     if (retryCount <= 0) return Duration.zero;
-    // 2s, 4s, 8s, 16s, 32s... capped at 120s
     final shift = (1 << retryCount).clamp(2, 120);
     return Duration(seconds: shift);
   }
 
   Future<void> queueSale(
     Sale sale, {
+    String shopId = 'default_shop',
     bool includeCostSnapshot = true,
   }) async {
     final queuedSale = QueuedSale(
@@ -450,257 +479,152 @@ class SyncService {
       includeCostSnapshot: includeCostSnapshot,
       queuedAt: DateTime.now(),
     );
-
     await _storage.savePending(queuedSale);
+    _pendingCount = await _storage.getPendingCount();
+    _notifyStatus();
 
-    // Optimistically update local stock in cached products for instant offline UI
+    // Optimistically update local stock
     for (final item in sale.lineItems) {
       await _storage.updateCachedProductStock(item.productId, -item.quantity);
     }
 
+    if (_isOnline) {
+      await drainQueue(shopId);
+    }
+  }
+
+  Future<void> queuePayment(CustomerPayment payment, [String shopId = 'default_shop']) async {
+    final queuedPayment = QueuedPayment(
+      payment: payment,
+      queuedAt: DateTime.now(),
+    );
+    await _storage.savePendingPayment(queuedPayment);
+    if (_isOnline) {
+      await drainQueue(shopId);
+    }
+  }
+
+  Future<List<FailedSaleRecord>> getFailedSales([String shopId = 'default_shop']) async {
+    final needsReview = await _storage.getNeedsReviewSales();
+    return needsReview.map((q) => q.toFailedSaleRecord()).toList();
+  }
+
+  Future<void> retryFailedSale(FailedSaleRecord record, [String shopId = 'default_shop']) async {
+    await _storage.removeNeedsReview(record.sale.id);
+    final queued = QueuedSale(
+      sale: record.sale,
+      includeCostSnapshot: true,
+      retryCount: 0,
+      queuedAt: DateTime.now(),
+      lastError: null,
+      lastAttemptAt: null,
+    );
+    await _storage.savePending(queued);
     _pendingCount = await _storage.getPendingCount();
     _notifyStatus();
-
     if (_isOnline) {
-      unawaited(drainQueue());
+      await drainQueue(shopId);
     }
   }
 
-  Future<void>? _syncingFuture;
-
-  Future<void> drainQueue() async {
-    if (_syncingFuture != null) {
-      return _syncingFuture!;
-    }
-    _syncingFuture = _performDrain();
-    try {
-      await _syncingFuture;
-    } finally {
-      _syncingFuture = null;
-    }
-  }
-
-  Future<void> _performDrain() async {
+  Future<void> drainQueue([String shopId = 'default_shop']) async {
+    if (_isSyncing || !_isOnline) return;
     _isSyncing = true;
     _notifyStatus();
 
     try {
-      // Drain pending sales first
-      await _drainSales();
-      // Then drain pending customer payments
-      await _drainPayments();
+      await _drainSales(shopId);
+      await _drainPayments(shopId);
     } finally {
       _isSyncing = false;
-      _notifyStatus();
-    }
-  }
-
-  Future<void> _drainSales() async {
-    _isSyncing = true;
-    _notifyStatus();
-
-    try {
-      final pending = await _storage.getPendingSales();
-      debugPrint('[Sync] _drainSales: ${pending.length} pending sales');
-      final now = DateTime.now();
-
-      for (final item in pending) {
-        if (!_isOnline) {
-          debugPrint('[Sync] _drainSales: offline, skipping ${item.sale.id}');
-          break;
-        }
-
-        if (item.retryCount > 0 && item.lastAttemptAt != null) {
-          final backoff = calculateBackoff(item.retryCount);
-          if (now.difference(item.lastAttemptAt!) < backoff) {
-            debugPrint('[Sync] _drainSales: ${item.sale.id} in backoff (retry ${item.retryCount}), skipping');
-            continue;
-          }
-        }
-
-        try {
-          debugPrint('[Sync] _drainSales: syncing sale ${item.sale.id} (attempt ${item.retryCount + 1})');
-          if (_customSyncSale != null) {
-            await _customSyncSale(item);
-          } else {
-            await _defaultFirestoreSync(item);
-          }
-
-          debugPrint('[Sync] _drainSales: sale ${item.sale.id} synced successfully, removing from pending');
-          await _storage.removePending(item.sale.id);
-        } catch (error, stack) {
-          final nextRetry = item.retryCount + 1;
-          final lastError = error.toString();
-
-          debugPrint('[Sync] _drainSales: sale ${item.sale.id} sync failed (attempt $nextRetry): $error',);
-          debugPrint('[Sync] _drainSales: stack: $stack');
-
-          if (nextRetry >= maxRetries) {
-            final reviewItem = item.copyWith(
-              retryCount: nextRetry,
-              lastAttemptAt: DateTime.now(),
-              lastError: lastError,
-            );
-            await _storage.saveNeedsReview(reviewItem);
-            await _storage.removePending(item.sale.id);
-            debugPrint(
-              '[Sync] _drainSales: sale ${item.sale.id} moved to Needs Review after $nextRetry retries. Error: $lastError',
-            );
-          } else {
-            final updated = item.copyWith(
-              retryCount: nextRetry,
-              lastAttemptAt: DateTime.now(),
-              lastError: lastError,
-            );
-            await _storage.savePending(updated);
-            debugPrint('[Sync] _drainSales: sale ${item.sale.id} retry ${item.retryCount + 1}/$maxRetries');
-          }
-        }
-      }
-    } finally {
       _pendingCount = await _storage.getPendingCount();
-      debugPrint('[Sync] _drainSales: complete. pending count: $_pendingCount');
       _notifyStatus();
     }
   }
 
-  Future<void> _drainPayments() async {
-    final pending = await _storage.getPendingPayments();
-    debugPrint('[Sync] _drainPayments: ${pending.length} pending payments');
-    final now = DateTime.now();
+  Future<void> _drainSales(String shopId) async {
+    final pending = await _storage.getPendingSales();
+    if (pending.isEmpty) return;
 
-    for (final item in pending) {
-      if (!_isOnline) {
-        debugPrint('[Sync] _drainPayments: offline, skipping ${item.payment.id}');
-        break;
-      }
-
-      if (item.retryCount > 0 && item.lastAttemptAt != null) {
-        final backoff = calculateBackoff(item.retryCount);
-        if (now.difference(item.lastAttemptAt!) < backoff) {
-          debugPrint('[Sync] _drainPayments: ${item.payment.id} in backoff (retry ${item.retryCount}), skipping');
-          continue;
-        }
-      }
-
+    for (final queued in pending) {
+      if (!_isOnline) break;
       try {
-        debugPrint('[Sync] _drainPayments: syncing payment ${item.payment.id} (attempt ${item.retryCount + 1})');
-        await _syncPayment(item);
-        debugPrint('[Sync] _drainPayments: payment ${item.payment.id} synced successfully');
-        await _storage.removePendingPayment(item.payment.id);
-      } catch (error, stack) {
-        final nextRetry = item.retryCount + 1;
-        final lastError = error.toString();
-
-        debugPrint('[Sync] _drainPayments: payment ${item.payment.id} sync failed (attempt $nextRetry): $error');
-        debugPrint('[Sync] _drainPayments: stack: $stack');
-
-        if (nextRetry >= maxRetries) {
-          // For payments, just keep retrying indefinitely - log the error
-          debugPrint(
-            '[Sync] _drainPayments: payment ${item.payment.id} failed after $nextRetry retries: $lastError',
-          );
+        if (_customSyncSale != null) {
+          await _customSyncSale!(queued, shopId);
         } else {
-          final updated = item.copyWith(
-            retryCount: nextRetry,
+          final db = FirebaseFirestore.instance;
+          final saleId = queued.sale.id;
+          final saleRef = db.collection('shops').doc(shopId).collection('sales').doc(saleId);
+          final costRef = db.collection('shops').doc(shopId).collection('sales_costs').doc(saleId);
+
+          final existing = await saleRef.get();
+          if (!existing.exists) {
+            final batch = db.batch();
+            batch.set(saleRef, queued.sale.toMap());
+            if (queued.includeCostSnapshot) {
+              batch.set(costRef, queued.sale.toCostMap());
+            }
+
+            for (final item in queued.sale.lineItems) {
+              final productRef = db.collection('shops').doc(shopId).collection('products').doc(item.productId);
+              batch.update(productRef, {
+                'quantity_on_hand': FieldValue.increment(-item.quantity),
+              });
+            }
+            await batch.commit();
+          }
+        }
+
+        await _storage.removePending(queued.sale.id);
+      } catch (e) {
+        final newRetryCount = queued.retryCount + 1;
+        if (newRetryCount >= maxRetries) {
+          await _storage.removePending(queued.sale.id);
+          final failed = QueuedSale(
+            sale: queued.sale,
+            includeCostSnapshot: queued.includeCostSnapshot,
+            queuedAt: queued.queuedAt,
+            retryCount: newRetryCount,
+            lastError: e.toString(),
             lastAttemptAt: DateTime.now(),
-            lastError: lastError,
           );
-          await _storage.savePendingPayment(updated);
-          debugPrint('[Sync] _drainPayments: payment ${item.payment.id} retry ${item.retryCount + 1}/$maxRetries');
+          await _storage.saveNeedsReview(failed);
+        } else {
+          final updated = QueuedSale(
+            sale: queued.sale,
+            includeCostSnapshot: queued.includeCostSnapshot,
+            queuedAt: queued.queuedAt,
+            retryCount: newRetryCount,
+            lastError: e.toString(),
+            lastAttemptAt: DateTime.now(),
+          );
+          await _storage.savePending(updated);
         }
       }
     }
   }
 
-  Future<void> _defaultFirestoreSync(QueuedSale queuedSale) async {
+  Future<void> _drainPayments(String shopId) async {
+    final pendingPayments = await _storage.getPendingPayments();
+    if (pendingPayments.isEmpty) return;
+
     final db = FirebaseFirestore.instance;
-    final saleId = queuedSale.sale.id;
-    debugPrint('[Sync] _defaultFirestoreSync: starting for sale $saleId');
 
-    // 1. Idempotency check: Client UUID prevents duplicate sales
-    final existing = await db.collection('sales').doc(saleId).get();
-    if (existing.exists) {
-      debugPrint('[Sync] _defaultFirestoreSync: sale $saleId already exists, skipping');
-      // If admin cost document is missing, ensure it's recorded
-      if (queuedSale.includeCostSnapshot) {
-        final costDoc = await db.collection('sales_costs').doc(saleId).get();
-        if (!costDoc.exists) {
+    for (final queued in pendingPayments) {
+      if (!_isOnline) break;
+      try {
+        if (_customSyncPayment != null) {
+          await _customSyncPayment!(queued, shopId);
+        } else {
           await db
-              .collection('sales_costs')
-              .doc(saleId)
-              .set(queuedSale.sale.toCostMap());
+              .collection('shops')
+              .doc(shopId)
+              .collection('customer_payments')
+              .doc(queued.payment.id)
+              .set(queued.payment.toMap());
         }
-      }
-      return; // Never re-decrement stock for an already written sale
-    }
-
-    final batch = db.batch();
-
-    // 2. Add public sale document (strictly without unit_cost_at_sale)
-    final saleRef = db.collection('sales').doc(saleId);
-    batch.set(saleRef, queuedSale.sale.toMap());
-
-    // 3. Add admin-only sales_costs document with unit_cost_at_sale snapshot
-    if (queuedSale.includeCostSnapshot) {
-      final costRef = db.collection('sales_costs').doc(saleId);
-      batch.set(costRef, queuedSale.sale.toCostMap());
-    }
-
-    // 4. Atomically decrement stock as FieldValue.increment deltas
-    // If two devices sell offline, the server sums both decrements!
-    for (final item in queuedSale.sale.lineItems) {
-      final productRef = db.collection('products').doc(item.productId);
-      batch.update(productRef, {
-        'quantity_on_hand': FieldValue.increment(-item.quantity),
-      });
-    }
-
-    debugPrint('[Sync] _defaultFirestoreSync: committing batch for sale $saleId (${queuedSale.sale.lineItems.length} line items)');
-    try {
-      await batch.commit().timeout(const Duration(seconds: 15));
-      debugPrint('[Sync] _defaultFirestoreSync: batch committed for sale $saleId');
-    } on FirebaseException catch (e) {
-      debugPrint('[Sync] _defaultFirestoreSync: FirebaseException for sale $saleId: ${e.code} - ${e.message}');
-      rethrow;
-    } catch (e) {
-      debugPrint('[Sync] _defaultFirestoreSync: unexpected error for sale $saleId: $e');
-      rethrow;
-    }
-  }
-
-  Future<List<FailedSaleRecord>> getFailedSales() async {
-    final list = await _storage.getNeedsReviewSales();
-    return list.map((q) => q.toFailedSaleRecord()).toList();
-  }
-
-  Future<void> retryFailedSale(FailedSaleRecord record) async {
-    final needsReview = await _storage.getNeedsReviewSales();
-    final matching =
-        needsReview.where((q) => q.sale.id == record.sale.id).toList();
-
-    if (matching.isNotEmpty) {
-      final item = matching.first;
-      await _storage.removeNeedsReview(item.sale.id);
-      // Reset retry count to 0 and re-queue in pending
-      await _storage.savePending(item.copyWith(
-        retryCount: 0,
-        lastAttemptAt: null,
-        lastError: null,
-      ));
-    } else {
-      await _storage.savePending(QueuedSale(
-        sale: record.sale,
-        includeCostSnapshot: true,
-        queuedAt: DateTime.now(),
-      ));
-    }
-
-    _pendingCount = await _storage.getPendingCount();
-    _notifyStatus();
-
-    if (_isOnline) {
-      await drainQueue();
+        await _storage.removePendingPayment(queued.payment.id);
+      } catch (_) {}
     }
   }
 
@@ -708,45 +632,11 @@ class SyncService {
     await _storage.cacheProducts(products, isAdmin: isAdmin);
   }
 
-  /// Strips cost fields from any cached products on the device.
-  /// Call this on cashier login to ensure no leftover admin data persists.
   Future<void> clearCachedCostData() async {
     await _storage.clearCachedCostData();
   }
 
   Future<List<Product>> getCachedProducts() async {
     return _storage.getCachedProducts();
-  }
-
-  // --- Customer Payment sync ---
-
-  Future<void> queuePayment(CustomerPayment payment) async {
-    final queued = QueuedPayment(
-      payment: payment,
-      queuedAt: DateTime.now(),
-    );
-    await _storage.savePendingPayment(queued);
-    if (_isOnline) {
-      unawaited(drainQueue());
-    }
-  }
-
-  Future<void> _syncPayment(QueuedPayment queuedPayment) async {
-    final db = FirebaseFirestore.instance;
-    // Idempotency check
-    final existing = await db
-        .collection('customer_payments')
-        .doc(queuedPayment.payment.id)
-        .get();
-    if (existing.exists) return;
-    await db
-        .collection('customer_payments')
-        .doc(queuedPayment.payment.id)
-        .set(queuedPayment.payment.toMap());
-  }
-
-  void dispose() {
-    _connectivitySubscription?.cancel();
-    _statusController.close();
   }
 }

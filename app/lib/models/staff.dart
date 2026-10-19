@@ -6,6 +6,7 @@ class Staff {
   final bool active;
   final String? pin;
   final String? authUid;
+  final String? shopId;
 
   Staff({
     required this.id,
@@ -15,6 +16,7 @@ class Staff {
     this.active = true,
     this.pin,
     this.authUid,
+    this.shopId,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +28,7 @@ class Staff {
       'active': active,
       'pin': pin,
       'auth_uid': authUid,
+      'shop_id': shopId,
     };
   }
 
@@ -35,9 +38,10 @@ class Staff {
       name: map['name'] ?? '',
       role: map['role'] ?? 'cashier',
       email: map['email'] ?? '',
-      active: map['active'] ?? true, // Default to true for existing docs
+      active: map['active'] ?? true,
       pin: map['pin'],
       authUid: map['auth_uid'],
+      shopId: map['shop_id'],
     );
   }
 }

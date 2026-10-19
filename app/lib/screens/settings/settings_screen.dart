@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' show PaperSize;
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 
 import '../../models/failed_sale.dart';
 import '../../models/staff.dart';
+import '../../models/shop.dart';
 import '../../services/auth_service.dart';
 import '../../services/csv_export_service.dart';
 import '../../services/firestore_service.dart';
@@ -578,23 +580,123 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.secondaryColor.withValues(
-                  alpha: 0.15,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.secondaryColor.withValues(
+                      alpha: 0.15,
+                    ),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  onPressed: _showChangePasswordDialog,
+                  icon: const Icon(Icons.lock_reset, size: 18),
+                  label: const Text('Change Password'),
                 ),
-                foregroundColor: Colors.white,
-                side: BorderSide(
-                  color: AppTheme.secondaryColor.withValues(alpha: 0.3),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.withValues(alpha: 0.2),
+                    foregroundColor: Colors.redAccent,
+                  ),
+                  onPressed: _showDeleteAccountDialog,
+                  icon: const Icon(Icons.delete_forever, size: 18),
+                  label: const Text('Delete Account'),
                 ),
-              ),
-              onPressed: _showChangePasswordDialog,
-              icon: const Icon(Icons.lock_reset, size: 18),
-              label: const Text('Change Password'),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    final passwordController = TextEditingController();
+    bool obscurePassword = true;
+    bool isLoading = false;
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.backgroundColor,
+              title: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'This action is permanent and will delete your account records. Enter your password to confirm.',
+                    style: TextStyle(color: AppTheme.secondaryColor, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  if (errorMessage != null) ...[
+                    Text(errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(
+                    controller: passwordController,
+                    obscureText: obscurePassword,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      suffixIcon: IconButton(
+                        icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                if (!isLoading)
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
+                  ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final password = passwordController.text;
+                          if (password.isEmpty) {
+                            setDialogState(() => errorMessage = 'Please enter your password.');
+                            return;
+                          }
+                          setDialogState(() {
+                            isLoading = true;
+                            errorMessage = null;
+                          });
+                          try {
+                            await AuthService().deleteAccount(password);
+                            if (!dialogContext.mounted) return;
+                            Navigator.of(dialogContext).popUntil((route) => route.isFirst);
+                          } catch (e) {
+                            setDialogState(() {
+                              isLoading = false;
+                              errorMessage = e.toString().replaceFirst('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Delete Account'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -892,6 +994,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            FutureBuilder<Shop?>(
+              future: _firestoreService.getShop(),
+              builder: (context, shopSnap) {
+                final shop = shopSnap.data;
+                if (shop == null) return const SizedBox.shrink();
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.vpn_key, color: AppTheme.primaryColor),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Store Join Code for Cashiers', style: TextStyle(color: AppTheme.secondaryColor, fontSize: 12)),
+                            const SizedBox(height: 2),
+                            Text(
+                              shop.joinCode,
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, color: Colors.white),
+                        tooltip: 'Copy Join Code',
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: shop.joinCode));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Join code copied to clipboard!')),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.amber),
+                        tooltip: 'Regenerate Join Code',
+                        onPressed: () async {
+                          await _firestoreService.regenerateJoinCode();
+                          setState(() {});
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Join code regenerated.')),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             StreamBuilder<List<Staff>>(
               stream: _firestoreService.getStaffStream(),
               builder: (context, snapshot) {

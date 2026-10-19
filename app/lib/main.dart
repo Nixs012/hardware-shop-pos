@@ -6,11 +6,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'firebase_options.dart';
 import 'models/staff.dart';
-import 'screens/auth/auth_screen.dart';
+import 'screens/auth/welcome_screen.dart';
 import 'screens/main_layout.dart';
-import 'screens/settings/first_run_setup_screen.dart';
 import 'services/auth_service.dart';
-import 'services/printer_service.dart';
 import 'services/sync_service.dart';
 import 'utils/theme.dart';
 
@@ -57,50 +55,38 @@ class AppGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: PrinterService().isFirstRun(),
-      builder: (context, firstRunSnapshot) {
-        if (firstRunSnapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (firstRunSnapshot.data ?? true) {
-          return const FirstRunSetupScreen();
+        final user = authSnapshot.data;
+        if (user == null) {
+          return const WelcomeScreen();
         }
 
-        return StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, authSnapshot) {
-            if (authSnapshot.connectionState == ConnectionState.waiting) {
+        return FutureBuilder<Staff?>(
+          future: AuthService().restoreCurrentStaff(),
+          builder: (context, staffSnapshot) {
+            if (staffSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
-            final user = authSnapshot.data;
-            if (user == null) {
-              return const AuthScreen();
+            final staff = staffSnapshot.data;
+            if (staff != null) {
+              if (staff.shopId != null) {
+                SyncService.instance.init(staff.shopId!);
+              }
+              return MainLayout(currentStaff: staff);
             }
 
-            return FutureBuilder<Staff?>(
-              future: AuthService().restoreCurrentStaff(),
-              builder: (context, staffSnapshot) {
-                if (staffSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
-
-                final staff = staffSnapshot.data;
-                if (staff != null) {
-                  return MainLayout(currentStaff: staff);
-                }
-
-                return const AuthScreen();
-              },
-            );
+            return const WelcomeScreen();
           },
         );
       },

@@ -5,6 +5,7 @@ import 'package:app/models/expense.dart';
 import 'package:app/models/failed_sale.dart';
 import 'package:app/models/product.dart';
 import 'package:app/models/sale.dart';
+import 'package:app/models/shop.dart';
 import 'package:app/models/staff.dart';
 import 'package:app/services/firestore_service.dart';
 
@@ -48,6 +49,39 @@ class _ReplayStream<T> {
 /// Call counters let tests assert that streams are subscribed exactly once
 /// (e.g. switching Reports tabs must not reload anything).
 class MockFirestoreService implements FirestoreService {
+  @override
+  String get shopId => 'demo_shop';
+
+  Shop? _mockShop = Shop(
+    id: 'demo_shop',
+    name: 'Demo Hardware',
+    address: '123 Main St',
+    phone: '0712345678',
+    footer: 'Thank you!',
+    paperSize: '58mm',
+    ownerUid: 'owner_123',
+    joinCode: '123456',
+    createdAt: DateTime.now(),
+  );
+
+  @override
+  Future<Shop?> getShop() async => _mockShop;
+
+  @override
+  Future<void> updateShop(Shop shop) async {
+    _mockShop = shop;
+  }
+
+  @override
+  Future<String> regenerateJoinCode() async {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final code = List.generate(6, (i) => chars[DateTime.now().microsecondsSinceEpoch % chars.length]).join();
+    if (_mockShop != null) {
+      _mockShop = _mockShop!.copyWith(joinCode: code);
+    }
+    return code;
+  }
+
   late final _ReplayStream<List<Product>> _products;
   late final _ReplayStream<List<Sale>> _sales;
   late final _ReplayStream<List<CustomerPayment>> _payments;

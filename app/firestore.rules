@@ -2,61 +2,95 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function isAuthenticated() {
       return request.auth != null;
     }
 
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getShopId() {
+      return getUserData().shop_id;
+    }
+
     function isAdmin() {
-      return isAuthenticated()
-        && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && getUserData().role == 'admin' && getUserData().active == true;
     }
 
-    match /staff/{staffId} {
-      allow read: if (isAuthenticated() && request.auth.uid == staffId) || isAdmin();
-      allow create, update: if isAdmin();
+    function isCashier() {
+      return isAuthenticated() && getUserData().role == 'cashier' && getUserData().active == true;
+    }
+
+    function belongsToShop(shopId) {
+      return isAuthenticated() && getShopId() == shopId && getUserData().active == true;
+    }
+
+    // Top-level user lookup document
+    match /users/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+      allow update: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Shops collection
+    match /shops/{shopId} {
+      allow read: if isAuthenticated() && (belongsToShop(shopId) || resource.data.join_code == request.query.limit(1));
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() && belongsToShop(shopId);
       allow delete: if false;
-    }
 
-    match /products/{productId} {
-      allow read: if isAuthenticated();
-      allow create, delete: if isAdmin();
-      // Cashiers may only decrement stock via an atomic FieldValue.increment
-      // on quantity_on_hand. All other product writes are admin-only.
-      allow update: if isAuthenticated()
-        && request.resource.data.keys().hasOnly(resource.data.keys())
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity_on_hand'])
-        && request.resource.data['quantity_on_hand'] is number;
-    }
+      // Staff subcollection
+      match /staff/{staffId} {
+        allow read: if belongsToShop(shopId) && ((request.auth.uid == staffId) || isAdmin());
+        allow create, update: if isAdmin() && belongsToShop(shopId);
+        allow delete: if false;
+      }
 
-    // Cost data for products is strictly restricted to admins only
-    match /product_costs/{productId} {
-      allow read, write: if isAdmin();
-    }
+      // Products
+      match /products/{productId} {
+        allow read: if belongsToShop(shopId);
+        allow create, delete: if isAdmin() && belongsToShop(shopId);
+        allow update: if belongsToShop(shopId) && (
+          isAdmin() ||
+          (isCashier() && request.resource.data.keys().hasOnly(resource.data.keys()) &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity_on_hand']) &&
+           request.resource.data['quantity_on_hand'] is number)
+        );
+      }
 
-    // Sales are immutable. Cashiers can only read their own sales without cost data.
-    match /sales/{saleId} {
-      allow read: if (isAuthenticated() && resource.data.staff_id == request.auth.uid) || isAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if false;
-    }
+      // Product costs (Admin only)
+      match /product_costs/{productId} {
+        allow read, write: if isAdmin() && belongsToShop(shopId);
+      }
 
-    // Cost data snapshots for sales are strictly restricted to admins only
-    match /sales_costs/{saleId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if false;
-    }
+      // Sales
+      match /sales/{saleId} {
+        allow read: if belongsToShop(shopId) && (isAdmin() || resource.data.staff_id == request.auth.uid);
+        allow create: if belongsToShop(shopId) && isAuthenticated();
+        allow update, delete: if false;
+      }
 
-    // Credit repayments are tracked in customer_payments. Admin-only read; cashiers create-only.
-    match /customer_payments/{paymentId} {
-      allow read: if isAdmin();
-      allow create: if isAuthenticated();
-      allow update, delete: if false;
-    }
+      // Sales costs (Admin only)
+      match /sales_costs/{saleId} {
+        allow read: if isAdmin() && belongsToShop(shopId);
+        allow create: if belongsToShop(shopId) && isAuthenticated();
+        allow update, delete: if false;
+      }
 
-    // Operating expenses: admin-only read and write
-    match /expenses/{expenseId} {
-      allow read, write: if isAdmin();
+      // Customer payments
+      match /customer_payments/{paymentId} {
+        allow read: if isAdmin() && belongsToShop(shopId);
+        allow create: if belongsToShop(shopId) && isAuthenticated();
+        allow update, delete: if false;
+      }
+
+      // Expenses
+      match /expenses/{expenseId} {
+        allow read, write: if isAdmin() && belongsToShop(shopId);
+      }
     }
 
     match /{document=**} {
