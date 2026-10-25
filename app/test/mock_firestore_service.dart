@@ -152,11 +152,32 @@ class MockFirestoreService implements FirestoreService {
   @override
   Future<void> deleteProduct(String productId) async {}
 
-  @override
-  Future<void> processSale(Sale sale, {bool includeCostSnapshot = true}) async {}
+  final List<Sale> _recordedSales = [];
+  Sale? mockSaleByMpesaCode;
 
   @override
-  Future<Sale?> getLatestSale({String? staffId}) async => null;
+  Future<void> processSale(Sale sale, {bool includeCostSnapshot = true}) async {
+    _recordedSales.add(sale);
+  }
+
+  @override
+  Future<Sale?> getLatestSale({String? staffId}) async =>
+      _recordedSales.isNotEmpty ? _recordedSales.last : null;
+
+  @override
+  Future<Sale?> findSaleByMpesaCode(String code) async {
+    final clean = code.trim().toUpperCase();
+    if (mockSaleByMpesaCode != null &&
+        mockSaleByMpesaCode!.mpesaCode?.trim().toUpperCase() == clean) {
+      return mockSaleByMpesaCode;
+    }
+    for (final s in _recordedSales) {
+      if (s.mpesaCode?.trim().toUpperCase() == clean) {
+        return s;
+      }
+    }
+    return null;
+  }
 
   @override
   Future<void> recordCustomerPayment(CustomerPayment payment) async {}

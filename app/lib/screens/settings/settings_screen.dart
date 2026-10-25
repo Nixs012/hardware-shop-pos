@@ -31,6 +31,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _shopNameController = TextEditingController();
   final _addressPhoneController = TextEditingController();
   final _footerController = TextEditingController();
+  final _mpesaNumberController = TextEditingController();
+  final _mpesaAccountController = TextEditingController();
+  String? _mpesaType;
+  Shop? _currentShop;
+  bool _savingMpesaDetails = false;
   late Future<List<FailedSaleRecord>> _failedSalesFuture;
   PaperSize _paperSize = PaperSize.mm58;
 
@@ -48,6 +53,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _failedSalesFuture = _loadFailedSales();
     _loadPrinterSettings();
     _checkBackupReminder();
+    if (_isAdmin) {
+      _loadShopDetails();
+    }
+  }
+
+  Future<void> _loadShopDetails() async {
+    try {
+      final shop = await _firestoreService.getShop();
+      if (shop != null && mounted) {
+        setState(() {
+          _currentShop = shop;
+          _mpesaType = shop.mpesaType;
+          _mpesaNumberController.text = shop.mpesaNumber ?? '';
+          _mpesaAccountController.text = shop.mpesaAccountNumber ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('[SettingsScreen] Error loading shop details: $e');
+    }
   }
 
   Future<void> _loadPrinterSettings() async {
@@ -82,6 +106,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _shopNameController.dispose();
     _addressPhoneController.dispose();
     _footerController.dispose();
+    _mpesaNumberController.dispose();
+    _mpesaAccountController.dispose();
     _printerService.dispose();
     super.dispose();
   }
@@ -486,6 +512,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             accountSection,
                             if (_isAdmin) ...[
                               const SizedBox(height: 24),
+                              _buildShopDetailsSection(),
+                              const SizedBox(height: 24),
                               _buildPrinterSection(),
                               const SizedBox(height: 24),
                               _buildImportExportSection(),
@@ -511,6 +539,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   accountSection,
                   if (_isAdmin) ...[
+                    const SizedBox(height: 24),
+                    _buildShopDetailsSection(),
                     const SizedBox(height: 24),
                     _buildStaffSection(),
                     const SizedBox(height: 24),
@@ -610,6 +640,195 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildShopDetailsSection() {
+    return Card(
+      color: Colors.white.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.storefront_outlined, color: AppTheme.primaryColor),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Shop Details & M-Pesa',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Configure M-Pesa payment details printed on customer receipts.',
+              style: TextStyle(color: AppTheme.secondaryColor, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String?>(
+              initialValue: _mpesaType,
+              dropdownColor: AppTheme.surfaceColor,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'M-Pesa type (Optional)',
+                labelStyle: const TextStyle(color: AppTheme.secondaryColor),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              items: const [
+                DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('None (Disabled)', style: TextStyle(color: Colors.white70)),
+                ),
+                DropdownMenuItem<String?>(
+                  value: 'Paybill',
+                  child: Text('Paybill', style: TextStyle(color: Colors.white)),
+                ),
+                DropdownMenuItem<String?>(
+                  value: 'Till',
+                  child: Text('Till (Buy Goods)', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+              onChanged: (val) {
+                setState(() => _mpesaType = val);
+              },
+            ),
+            if (_mpesaType != null) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _mpesaNumberController,
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: _mpesaType == 'Paybill' ? 'Paybill Business Number' : 'Till Number',
+                  hintText: _mpesaType == 'Paybill' ? 'e.g. 522522' : 'e.g. 123456',
+                  labelStyle: const TextStyle(color: AppTheme.secondaryColor),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  filled: true,
+                  fillColor: Colors.white.withValues(alpha: 0.05),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              if (_mpesaType == 'Paybill') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _mpesaAccountController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Account number',
+                    hintText: 'e.g. 12345678 or Shop Name',
+                    labelStyle: const TextStyle(color: AppTheme.secondaryColor),
+                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: _savingMpesaDetails ? null : _saveShopDetails,
+                icon: _savingMpesaDetails
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.save_outlined, size: 20),
+                label: const Text(
+                  'Save Shop Details',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveShopDetails() async {
+    setState(() => _savingMpesaDetails = true);
+    try {
+      final currentShop = _currentShop ??
+          await _firestoreService.getShop() ??
+          Shop(
+            id: widget.currentStaff.shopId ?? '',
+            name: 'Shamamo Hardware Shop',
+            address: '',
+            phone: '',
+            footer: 'Thank you!',
+            paperSize: '58mm',
+            ownerUid: widget.currentStaff.id,
+            joinCode: '',
+            createdAt: DateTime.now(),
+          );
+
+      final cleanNumber = _mpesaNumberController.text.trim();
+      final cleanAccount = _mpesaType == 'Paybill' ? _mpesaAccountController.text.trim() : null;
+
+      final updatedShop = currentShop.copyWith(
+        mpesaType: _mpesaType,
+        mpesaNumber: cleanNumber.isNotEmpty ? cleanNumber : null,
+        mpesaAccountNumber: cleanAccount != null && cleanAccount.isNotEmpty ? cleanAccount : null,
+      );
+
+      await _firestoreService.updateShop(updatedShop);
+      _currentShop = updatedShop;
+
+      await _printerService.setMpesaInstruction(updatedShop.mpesaInstruction);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shop details updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update shop details: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingMpesaDetails = false);
+      }
+    }
   }
 
   void _showDeleteAccountDialog() {

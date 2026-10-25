@@ -101,6 +101,7 @@ abstract class FirestoreService {
 
   Future<void> processSale(Sale sale, {bool includeCostSnapshot = true});
   Future<Sale?> getLatestSale({String? staffId});
+  Future<Sale?> findSaleByMpesaCode(String code);
 
   Future<void> recordCustomerPayment(CustomerPayment payment);
 
@@ -335,6 +336,7 @@ class FirestoreServiceImpl implements FirestoreService {
             .map((doc) => Sale.fromMap(doc.data(), doc.id))
             .toList();
         sales.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        SyncService.instance.cacheSales(sales);
         return sales;
       });
     } else {
@@ -351,6 +353,7 @@ class FirestoreServiceImpl implements FirestoreService {
           return Sale.fromMap(doc.data(), doc.id, costData);
         }).toList();
         sales.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        SyncService.instance.cacheSales(sales);
         if (!controller.isClosed) {
           controller.add(sales);
         }
@@ -405,6 +408,41 @@ class FirestoreServiceImpl implements FirestoreService {
     if (snapshot.docs.isEmpty) return null;
     final doc = snapshot.docs.first;
     return Sale.fromMap(doc.data(), doc.id);
+  }
+
+  @override
+  Future<Sale?> findSaleByMpesaCode(String code) async {
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return null;
+
+    // 1. Check local storage first (handles offline, pending queue, and cached sales)
+    final localSale = await SyncService.instance.findSaleByMpesaCode(cleanCode);
+    if (localSale != null) return localSale;
+
+    // 2. If online, query Firestore for this shop
+    if (SyncService.instance.isOnline) {
+      try {
+        final querySnap = await _db
+            .collection('shops')
+            .doc(shopId)
+            .collection('sales')
+            .where('mpesa_code', isEqualTo: cleanCode)
+            .limit(1)
+            .get();
+
+        if (querySnap.docs.isNotEmpty) {
+          final doc = querySnap.docs.first;
+          final sale = Sale.fromMap(doc.data(), doc.id);
+          // Cache it locally so subsequent lookups are fast even if offline
+          await SyncService.instance.cacheSales([sale]);
+          return sale;
+        }
+      } catch (e) {
+        debugPrint('[FirestoreService] Error finding sale by mpesa code on remote: $e');
+      }
+    }
+
+    return null;
   }
 
   @override

@@ -331,6 +331,57 @@ async function runTests() {
     await assertFails(getDoc(doc(foreignDb, 'shops', newShopId)));
   });
 
+  await runCase('M-Pesa security rules: cashier blocked from editing shop details, foreign shop read blocked, sale with mpesa_code accepted', async () => {
+    const cashierDb = testEnv.authenticatedContext('cashierB').firestore();
+    const adminDb = testEnv.authenticatedContext('adminB').firestore();
+
+    // 1. Cashier CANNOT edit shop M-Pesa details
+    await assertFails(
+      updateDoc(doc(cashierDb, 'shops', 'shopB'), {
+        mpesa_type: 'Paybill',
+        mpesa_number: '123456',
+        mpesa_account_number: '7890',
+      })
+    );
+
+    // 2. Admin CAN edit shop M-Pesa details
+    await assertSucceeds(
+      updateDoc(doc(adminDb, 'shops', 'shopB'), {
+        mpesa_type: 'Paybill',
+        mpesa_number: '123456',
+        mpesa_account_number: '7890',
+      })
+    );
+
+    // 3. Cashier CANNOT read other shops
+    await assertFails(
+      getDoc(doc(cashierDb, 'shops', 'shopA'))
+    );
+
+    // 4. Cashier CAN read their own shop (to read M-Pesa instruction for receipts)
+    await assertSucceeds(
+      getDoc(doc(cashierDb, 'shops', 'shopB'))
+    );
+
+    // 5. Sale with mpesa_code accepted
+    await assertSucceeds(
+      setDoc(doc(cashierDb, 'shops', 'shopB', 'sales', 'sale_mpesa_test'), {
+        id: 'sale_mpesa_test',
+        timestamp: new Date().toISOString(),
+        staff_id: 'cashierB',
+        payment_method: 'M-Pesa',
+        mpesa_code: 'QAB12CD34E',
+        line_items: [
+          {
+            product_id: 'prodB1',
+            quantity: 1,
+            unit_price_at_sale: 500,
+          },
+        ],
+      })
+    );
+  });
+
   console.log(`\nResults: ${passed} passed, ${failed} failed\n`);
 
   await testEnv.cleanup();

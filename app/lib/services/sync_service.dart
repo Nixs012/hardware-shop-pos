@@ -56,6 +56,11 @@ abstract class SyncStorage {
   Future<void> savePendingPayment(QueuedPayment payment);
   Future<void> removePendingPayment(String paymentId);
   Future<List<QueuedPayment>> getPendingPayments();
+
+  // Sales cache & M-Pesa duplicate check
+  Future<void> cacheSales(List<Sale> sales);
+  Future<List<Sale>> getCachedSales();
+  Future<Sale?> findSaleByMpesaCode(String code);
 }
 
 class HiveSyncStorage implements SyncStorage {
@@ -69,11 +74,13 @@ class HiveSyncStorage implements SyncStorage {
   String get _needsReviewBoxName => 'needs_review_sales_$_shopId';
   String get _productsBoxName => 'cached_products_$_shopId';
   String get _pendingPaymentsBoxName => 'pending_payments_$_shopId';
+  String get _cachedSalesBoxName => 'cached_sales_$_shopId';
 
   late Box<Map> _pendingBox;
   late Box<Map> _needsReviewBox;
   late Box<Map> _productsBox;
   late Box<Map> _pendingPaymentsBox;
+  late Box<Map> _cachedSalesBox;
 
   @override
   Future<void> init() async {
@@ -81,6 +88,7 @@ class HiveSyncStorage implements SyncStorage {
     _needsReviewBox = await Hive.openBox<Map>(_needsReviewBoxName);
     _productsBox = await Hive.openBox<Map>(_productsBoxName);
     _pendingPaymentsBox = await Hive.openBox<Map>(_pendingPaymentsBoxName);
+    _cachedSalesBox = await Hive.openBox<Map>(_cachedSalesBoxName);
   }
 
   Future<void> clearLocalCaches() async {
@@ -89,6 +97,7 @@ class HiveSyncStorage implements SyncStorage {
       if (_needsReviewBox.isOpen) await _needsReviewBox.clear();
       if (_productsBox.isOpen) await _productsBox.clear();
       if (_pendingPaymentsBox.isOpen) await _pendingPaymentsBox.clear();
+      if (_cachedSalesBox.isOpen) await _cachedSalesBox.clear();
     } catch (_) {}
   }
 
@@ -228,6 +237,70 @@ class HiveSyncStorage implements SyncStorage {
     list.sort((a, b) => a.queuedAt.compareTo(b.queuedAt));
     return list;
   }
+
+  @override
+  Future<void> cacheSales(List<Sale> sales) async {
+    final map = <String, Map<String, dynamic>>{};
+    for (final sale in sales) {
+      map[sale.id] = sale.toMap();
+    }
+    await _cachedSalesBox.putAll(map);
+  }
+
+  @override
+  Future<List<Sale>> getCachedSales() async {
+    final list = <Sale>[];
+    for (final raw in _cachedSalesBox.values) {
+      try {
+        final map = Map<String, dynamic>.from(raw);
+        final id = map['id'] as String? ?? '';
+        list.add(Sale.fromMap(map, id));
+      } catch (e) {
+        debugPrint('Error parsing cached sale: $e');
+      }
+    }
+    return list;
+  }
+
+  @override
+  Future<Sale?> findSaleByMpesaCode(String code) async {
+    final target = code.trim().toUpperCase();
+    if (target.isEmpty) return null;
+
+    for (final raw in _pendingBox.values) {
+      try {
+        final queued = QueuedSale.fromMap(Map<String, dynamic>.from(raw));
+        final c = queued.sale.mpesaCode?.trim().toUpperCase();
+        if (c != null && c.isNotEmpty && c == target) {
+          return queued.sale;
+        }
+      } catch (_) {}
+    }
+
+    for (final raw in _needsReviewBox.values) {
+      try {
+        final queued = QueuedSale.fromMap(Map<String, dynamic>.from(raw));
+        final c = queued.sale.mpesaCode?.trim().toUpperCase();
+        if (c != null && c.isNotEmpty && c == target) {
+          return queued.sale;
+        }
+      } catch (_) {}
+    }
+
+    for (final raw in _cachedSalesBox.values) {
+      try {
+        final map = Map<String, dynamic>.from(raw);
+        final id = map['id'] as String? ?? '';
+        final sale = Sale.fromMap(map, id);
+        final c = sale.mpesaCode?.trim().toUpperCase();
+        if (c != null && c.isNotEmpty && c == target) {
+          return sale;
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
 }
 
 class MemorySyncStorage implements SyncStorage {
@@ -235,6 +308,7 @@ class MemorySyncStorage implements SyncStorage {
   final Map<String, Map<String, dynamic>> _needsReview = {};
   final Map<String, Map<String, dynamic>> _products = {};
   final Map<String, Map<String, dynamic>> _pendingPayments = {};
+  final Map<String, Map<String, dynamic>> _cachedSales = {};
 
   @override
   Future<void> init() async {}
@@ -333,6 +407,53 @@ class MemorySyncStorage implements SyncStorage {
         .toList();
     list.sort((a, b) => a.queuedAt.compareTo(b.queuedAt));
     return list;
+  }
+
+  @override
+  Future<void> cacheSales(List<Sale> sales) async {
+    for (final sale in sales) {
+      _cachedSales[sale.id] = sale.toMap();
+    }
+  }
+
+  @override
+  Future<List<Sale>> getCachedSales() async {
+    return _cachedSales.values
+        .map((m) => Sale.fromMap(Map<String, dynamic>.from(m), m['id'] as String? ?? ''))
+        .toList();
+  }
+
+  @override
+  Future<Sale?> findSaleByMpesaCode(String code) async {
+    final target = code.trim().toUpperCase();
+    if (target.isEmpty) return null;
+
+    for (final m in _pending.values) {
+      final queued = QueuedSale.fromMap(Map<String, dynamic>.from(m));
+      final c = queued.sale.mpesaCode?.trim().toUpperCase();
+      if (c != null && c.isNotEmpty && c == target) {
+        return queued.sale;
+      }
+    }
+
+    for (final m in _needsReview.values) {
+      final queued = QueuedSale.fromMap(Map<String, dynamic>.from(m));
+      final c = queued.sale.mpesaCode?.trim().toUpperCase();
+      if (c != null && c.isNotEmpty && c == target) {
+        return queued.sale;
+      }
+    }
+
+    for (final m in _cachedSales.values) {
+      final id = m['id'] as String? ?? '';
+      final sale = Sale.fromMap(Map<String, dynamic>.from(m), id);
+      final c = sale.mpesaCode?.trim().toUpperCase();
+      if (c != null && c.isNotEmpty && c == target) {
+        return sale;
+      }
+    }
+
+    return null;
   }
 }
 
@@ -663,5 +784,17 @@ class SyncService {
 
   Future<List<Product>> getCachedProducts() async {
     return _storage.getCachedProducts();
+  }
+
+  Future<void> cacheSales(List<Sale> sales) async {
+    await _storage.cacheSales(sales);
+  }
+
+  Future<List<Sale>> getCachedSales() async {
+    return _storage.getCachedSales();
+  }
+
+  Future<Sale?> findSaleByMpesaCode(String code) async {
+    return _storage.findSaleByMpesaCode(code);
   }
 }

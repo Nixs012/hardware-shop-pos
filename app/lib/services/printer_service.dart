@@ -33,6 +33,7 @@ class PrinterService {
   static const _shopNameKey = 'printer_shop_name';
   static const _addressPhoneKey = 'printer_address_phone';
   static const _footerKey = 'printer_footer';
+  static const _mpesaInstructionKey = 'printer_mpesa_instruction';
 
   static const _firstRunKey = 'first_run_completed';
   static const _lastBackupReminderKey = 'last_backup_reminder_date';
@@ -117,15 +118,22 @@ class PrinterService {
   /// ---------------------------------------------------------------------------
   /// Backup-reminder scheduling (weekly)
   /// ---------------------------------------------------------------------------
-  /// Returns true when the weekly backup reminder should fire.
-  static const _backupInterval = Duration(days: 7);
+  /// Returns true when the monthly backup reminder should fire.
+  static const _backupInterval = Duration(days: 30);
 
   Future<bool> shouldShowBackupReminder() async {
     final prefs = await SharedPreferences.getInstance();
     final lastStr = prefs.getString(_lastBackupReminderKey);
-    if (lastStr == null) return true;
+    if (lastStr == null) {
+      // First run — seed today so the reminder won't fire for 30 days.
+      await prefs.setString(
+        _lastBackupReminderKey,
+        DateTime.now().toIso8601String(),
+      );
+      return false;
+    }
     final last = DateTime.tryParse(lastStr);
-    if (last == null) return true;
+    if (last == null) return false;
     return DateTime.now().difference(last) >= _backupInterval;
   }
 
@@ -152,21 +160,40 @@ class PrinterService {
     return prefs.getString(_footerKey) ?? 'Thank you!';
   }
 
+  Future<String?> getMpesaInstruction() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_mpesaInstructionKey);
+  }
+
+  Future<void> setMpesaInstruction(String? instruction) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (instruction != null && instruction.trim().isNotEmpty) {
+      await prefs.setString(_mpesaInstructionKey, instruction.trim());
+    } else {
+      await prefs.remove(_mpesaInstructionKey);
+    }
+  }
+
   Future<void> saveReceiptSettings({
     required String shopName,
     required String addressPhone,
     required String footerMessage,
+    String? mpesaInstruction,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_shopNameKey, shopName);
     await prefs.setString(_addressPhoneKey, addressPhone);
     await prefs.setString(_footerKey, footerMessage);
+    if (mpesaInstruction != null) {
+      await setMpesaInstruction(mpesaInstruction);
+    }
   }
 
   Future<void> printSale({
     required Sale sale,
     required String staffName,
     required List<ReceiptItem> items,
+    String? mpesaInstruction,
   }) async {
     if (kIsWeb) return;
 
@@ -181,6 +208,10 @@ class PrinterService {
     final shopName = await getShopName();
     final addressPhone = await getAddressPhone();
     final footerMessage = await getFooterMessage();
+    final effectiveInstruction = mpesaInstruction ?? await getMpesaInstruction();
+    if (mpesaInstruction != null) {
+      await setMpesaInstruction(mpesaInstruction);
+    }
 
     final bytes = await _buildTicketBytes(
       paperSize: paperSize,
@@ -190,6 +221,7 @@ class PrinterService {
       staffName: staffName,
       items: items,
       footerMessage: footerMessage,
+      mpesaInstruction: effectiveInstruction,
     );
 
     _debugDump(
@@ -200,6 +232,7 @@ class PrinterService {
       staffName: staffName,
       items: items,
       footerMessage: footerMessage,
+      mpesaInstruction: effectiveInstruction,
       bytes: bytes,
     );
 
@@ -208,6 +241,29 @@ class PrinterService {
       _connected = false;
       throw const PrinterConnectionException('Print write failed');
     }
+  }
+
+  /// Public helper for testing and receipt generation
+  Future<List<int>> generateReceiptBytes({
+    required PaperSize paperSize,
+    required String shopName,
+    required String addressPhone,
+    required Sale sale,
+    required String staffName,
+    required List<ReceiptItem> items,
+    required String footerMessage,
+    String? mpesaInstruction,
+  }) {
+    return _buildTicketBytes(
+      paperSize: paperSize,
+      shopName: shopName,
+      addressPhone: addressPhone,
+      sale: sale,
+      staffName: staffName,
+      items: items,
+      footerMessage: footerMessage,
+      mpesaInstruction: mpesaInstruction,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -221,6 +277,7 @@ class PrinterService {
     required String staffName,
     required List<ReceiptItem> items,
     required String footerMessage,
+    String? mpesaInstruction,
   }) async {
     final profile = await CapabilityProfile.load();
     final ticket = Generator(paperSize, profile);
@@ -320,7 +377,19 @@ class PrinterService {
     );
     bytes.addAll(ticket.hr());
     bytes.addAll(ticket.text('Paid via: ${sale.paymentMethod}'));
+    if (sale.paymentMethod == 'M-Pesa' && sale.mpesaCode != null && sale.mpesaCode!.isNotEmpty) {
+      bytes.addAll(ticket.text('M-Pesa Code: ${sale.mpesaCode}'));
+    }
     bytes.addAll(ticket.hr());
+    if (mpesaInstruction != null && mpesaInstruction.trim().isNotEmpty) {
+      bytes.addAll(
+        ticket.text(
+          mpesaInstruction.trim(),
+          styles: const PosStyles(align: PosAlign.center, bold: true),
+        ),
+      );
+      bytes.addAll(ticket.feed(1));
+    }
     bytes.addAll(
       ticket.text(
         footerMessage,
@@ -386,6 +455,7 @@ class PrinterService {
     required String staffName,
     required List<ReceiptItem> items,
     required String footerMessage,
+    String? mpesaInstruction,
     required List<int> bytes,
   }) {
     if (!kDebugMode) return;
@@ -409,7 +479,13 @@ class PrinterService {
       'TOTAL: ${formatMoney(sale.totalAmount)}',
       '-' * 32,
       'Paid via: ${sale.paymentMethod}',
+      if (sale.paymentMethod == 'M-Pesa' && sale.mpesaCode != null && sale.mpesaCode!.isNotEmpty)
+        'M-Pesa Code: ${sale.mpesaCode}',
       '-' * 32,
+      if (mpesaInstruction != null && mpesaInstruction.trim().isNotEmpty) ...[
+        mpesaInstruction.trim(),
+        '',
+      ],
       footerMessage,
       '[CUT]',
     ];

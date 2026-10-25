@@ -8,6 +8,7 @@ class Sale {
   final List<SaleLineItem> lineItems;
   final String? customerName;
   final String? customerPhone;
+  final String? mpesaCode;
 
   Sale({
     required this.id,
@@ -17,6 +18,7 @@ class Sale {
     required this.lineItems,
     this.customerName,
     this.customerPhone,
+    this.mpesaCode,
   });
 
   double get totalAmount => lineItems.fold(
@@ -41,6 +43,7 @@ class Sale {
       'line_items': lineItems.map((x) => x.toMap()).toList(),
       if (customerName != null) 'customer_name': customerName,
       if (customerPhone != null) 'customer_phone': customerPhone,
+      if (mpesaCode != null) 'mpesa_code': mpesaCode,
     };
   }
 
@@ -56,6 +59,7 @@ class Sale {
       'total_amount': totalAmount,
       if (customerName != null) 'customer_name': customerName,
       if (customerPhone != null) 'customer_phone': customerPhone,
+      if (mpesaCode != null) 'mpesa_code': mpesaCode,
     };
   }
 
@@ -96,6 +100,7 @@ class Sale {
       lineItems: items,
       customerName: map['customer_name'],
       customerPhone: map['customer_phone'],
+      mpesaCode: map['mpesa_code'] ?? map['mpesaCode'],
     );
   }
 }

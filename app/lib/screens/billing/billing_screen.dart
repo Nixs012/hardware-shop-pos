@@ -13,8 +13,10 @@ import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
 import '../../services/sync_service.dart';
+import '../../utils/mpesa_utils.dart';
 import '../../utils/theme.dart';
 import '../../widgets/error_display_widgets.dart';
+import 'package:flutter/services.dart';
 
 class BillingScreen extends StatefulWidget {
   final Staff currentStaff;
@@ -189,8 +191,13 @@ class _BillingScreenState extends State<BillingScreen>
 
       String? customerName;
       String? customerPhone;
+      String? mpesaCode;
 
-      if (paymentMethod == 'Credit') {
+      if (paymentMethod == 'M-Pesa') {
+        final code = await _showMpesaCodeDialog();
+        if (code == null) return;
+        mpesaCode = code;
+      } else if (paymentMethod == 'Credit') {
         final customerInfo = await _showCustomerCreditDialog();
         if (customerInfo == null) return;
         customerName = customerInfo['name'];
@@ -217,6 +224,7 @@ class _BillingScreenState extends State<BillingScreen>
         lineItems: _cart.values.toList(),
         customerName: customerName,
         customerPhone: customerPhone,
+        mpesaCode: mpesaCode,
       );
 
       final bool isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
@@ -281,10 +289,12 @@ class _BillingScreenState extends State<BillingScreen>
     }).toList();
 
     try {
+      final shop = await _firestoreService.getShop();
       await _printerService.printSale(
         sale: sale,
         staffName: widget.currentStaff.name,
         items: items,
+        mpesaInstruction: shop?.mpesaInstruction,
       );
     } catch (error) {
       if (!mounted) return;
@@ -433,6 +443,232 @@ class _BillingScreenState extends State<BillingScreen>
         );
       },
     );
+  }
+
+  Future<String?> _showMpesaCodeDialog() async {
+    final controller = TextEditingController();
+    String? inlineError;
+    bool isValid = false;
+    bool isCheckingDuplicate = false;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void onCodeChanged(String value) {
+              final sanitized = MpesaUtils.sanitizeCode(value);
+              if (value != sanitized) {
+                controller.value = TextEditingValue(
+                  text: sanitized,
+                  selection: TextSelection.collapsed(offset: sanitized.length),
+                );
+              }
+              final err = MpesaUtils.getValidationError(sanitized);
+              setDialogState(() {
+                inlineError = err;
+                isValid = err == null;
+              });
+            }
+
+            Future<void> onCompleteSale() async {
+              final code = MpesaUtils.sanitizeCode(controller.text);
+              final err = MpesaUtils.getValidationError(code);
+              if (err != null) {
+                setDialogState(() {
+                  inlineError = err;
+                  isValid = false;
+                });
+                return;
+              }
+
+              setDialogState(() {
+                isCheckingDuplicate = true;
+              });
+
+              try {
+                final duplicateSale = await _firestoreService.findSaleByMpesaCode(code);
+                if (duplicateSale != null && mounted) {
+                  final isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
+                  final override = await _showDuplicateWarningDialog(duplicateSale, isAdmin: isAdmin);
+                  if (override != true) {
+                    setDialogState(() {
+                      isCheckingDuplicate = false;
+                    });
+                    return;
+                  }
+                }
+
+                if (dialogCtx.mounted) {
+                  Navigator.pop(dialogCtx, code);
+                }
+              } catch (e) {
+                if (dialogCtx.mounted) {
+                  setDialogState(() {
+                    inlineError = 'Error checking duplicate: $e';
+                    isCheckingDuplicate = false;
+                  });
+                }
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: AppTheme.backgroundColor,
+              title: const Text(
+                'M-Pesa Payment',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total: KSh ${_cartTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'M-Pesa transaction code',
+                        hintText: 'e.g. QAB12CD34E',
+                        labelStyle: const TextStyle(color: AppTheme.secondaryColor),
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        errorText: inlineError,
+                        errorMaxLines: 2,
+                        suffixIcon: isValid
+                            ? const Icon(Icons.check_circle, color: Colors.green)
+                            : null,
+                      ),
+                      onChanged: onCodeChanged,
+                    ),
+                    if (inlineError == null && !isValid) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Enter 10-character code (letters and digits only)',
+                        style: TextStyle(color: AppTheme.secondaryColor, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isCheckingDuplicate ? null : () => Navigator.pop(dialogCtx, null),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: (isValid && !isCheckingDuplicate) ? onCompleteSale : null,
+                  child: isCheckingDuplicate
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Complete Sale'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _showDuplicateWarningDialog(Sale earlierSale, {required bool isAdmin}) async {
+    final saleDateStr = earlierSale.timestamp.toLocal().toString().substring(0, 16);
+    final shortId = earlierSale.id.length > 8 ? earlierSale.id.substring(0, 8) : earlierSale.id;
+
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.backgroundColor,
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Duplicate M-Pesa Code',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This M-Pesa transaction code was already used on sale #$shortId at $saleDateStr for KSh ${earlierSale.totalAmount.toStringAsFixed(2)}.',
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            if (isAdmin)
+              const Text(
+                'As an admin, you can override this duplicate check and complete the sale anyway.',
+                style: TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.bold),
+              )
+            else
+              const Text(
+                'Cashiers cannot proceed with duplicate transaction codes. Please verify the code with the customer.',
+                style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+          ],
+        ),
+        actions: [
+          if (isAdmin) ...[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Override & Complete'),
+            ),
+          ] else
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Close'),
+            ),
+        ],
+      ),
+    ) ?? false;
   }
 
   Widget _paymentButton(BuildContext context, String method) {

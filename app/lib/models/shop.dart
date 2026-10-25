@@ -8,6 +8,9 @@ class Shop {
   final String ownerUid;
   final String joinCode;
   final DateTime createdAt;
+  final String? mpesaType; // 'paybill' or 'till'
+  final String? mpesaNumber;
+  final String? mpesaAccountNumber;
 
   Shop({
     required this.id,
@@ -19,7 +22,28 @@ class Shop {
     required this.ownerUid,
     required this.joinCode,
     required this.createdAt,
+    this.mpesaType,
+    this.mpesaNumber,
+    this.mpesaAccountNumber,
   });
+
+  /// Formatted instruction line for receipt printing.
+  /// If none is configured or number is empty, returns null.
+  String? get mpesaInstruction {
+    final type = mpesaType?.toLowerCase().trim();
+    final num = mpesaNumber?.trim();
+    if (num == null || num.isEmpty) return null;
+    if (type == 'paybill') {
+      final acc = mpesaAccountNumber?.trim();
+      if (acc != null && acc.isNotEmpty) {
+        return 'Pay via M-Pesa: Paybill $num, Acc $acc';
+      }
+      return 'Pay via M-Pesa: Paybill $num';
+    } else if (type == 'till') {
+      return 'Pay via M-Pesa: Till $num';
+    }
+    return null;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -32,6 +56,9 @@ class Shop {
       'owner_uid': ownerUid,
       'join_code': joinCode,
       'created_at': createdAt.toIso8601String(),
+      if (mpesaType != null) 'mpesa_type': mpesaType,
+      if (mpesaNumber != null) 'mpesa_number': mpesaNumber,
+      if (mpesaAccountNumber != null) 'mpesa_account_number': mpesaAccountNumber,
     };
   }
 
@@ -48,6 +75,9 @@ class Shop {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : DateTime.now(),
+      mpesaType: map['mpesa_type'] ?? map['mpesaType'],
+      mpesaNumber: map['mpesa_number'] ?? map['mpesaNumber'],
+      mpesaAccountNumber: map['mpesa_account_number'] ?? map['mpesaAccountNumber'],
     );
   }
 
@@ -61,6 +91,9 @@ class Shop {
     String? ownerUid,
     String? joinCode,
     DateTime? createdAt,
+    String? mpesaType,
+    String? mpesaNumber,
+    String? mpesaAccountNumber,
   }) {
     return Shop(
       id: id ?? this.id,
@@ -72,6 +105,9 @@ class Shop {
       ownerUid: ownerUid ?? this.ownerUid,
       joinCode: joinCode ?? this.joinCode,
       createdAt: createdAt ?? this.createdAt,
+      mpesaType: mpesaType ?? this.mpesaType,
+      mpesaNumber: mpesaNumber ?? this.mpesaNumber,
+      mpesaAccountNumber: mpesaAccountNumber ?? this.mpesaAccountNumber,
     );
   }
 }
