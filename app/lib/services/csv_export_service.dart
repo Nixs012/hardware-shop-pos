@@ -16,10 +16,17 @@ import 'sync_service.dart';
 /// it falls back to a text area copy-paste mechanism (the user pastes CSV
 /// text and receives exported CSV text back).
 class CsvExportService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
+  final String shopId;
   static const _uuid = Uuid();
   static final CsvEncoder _encoder = CsvEncoder();
   static final CsvDecoder _decoder = CsvDecoder();
+
+  CsvExportService([String? shopId, FirebaseFirestore? firestore])
+      : shopId = (shopId != null && shopId.isNotEmpty)
+            ? shopId
+            : SyncService.instance.currentShopId,
+        _db = firestore ?? FirebaseFirestore.instance;
 
   // ---------------------------------------------------------------------------
   // Product Import
@@ -128,12 +135,16 @@ class CsvExportService {
     }
 
     // Batch-write all products using FirestoreService's addProduct
+    final productsColl =
+        _db.collection('shops').doc(shopId).collection('products');
+    final costsColl =
+        _db.collection('shops').doc(shopId).collection('product_costs');
     final writeBatch = _db.batch();
     for (final p in products) {
-      final docRef = _db.collection('products').doc(p.id);
+      final docRef = productsColl.doc(p.id);
       writeBatch.set(docRef, p.toMap());
       writeBatch.set(
-        _db.collection('product_costs').doc(p.id),
+        costsColl.doc(p.id),
         p.toCostMap(),
         SetOptions(merge: true),
       );
@@ -191,7 +202,11 @@ class CsvExportService {
   }
 
   Future<Map<String, Product>> _fetchProductMap() async {
-    final snap = await _db.collection('products').get();
+    final snap = await _db
+        .collection('shops')
+        .doc(shopId)
+        .collection('products')
+        .get();
     final map = <String, Product>{};
     for (final doc in snap.docs) {
       map[doc.id] = Product.fromMap(doc.data(), doc.id);
@@ -204,6 +219,8 @@ class CsvExportService {
     DateTime? endDate,
   }) async {
     Query<Map<String, dynamic>> query = _db
+        .collection('shops')
+        .doc(shopId)
         .collection('sales')
         .orderBy('timestamp');
 

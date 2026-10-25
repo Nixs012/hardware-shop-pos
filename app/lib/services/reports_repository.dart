@@ -222,6 +222,13 @@ class ReportsRepository extends ChangeNotifier {
     _session = null;
   }
 
+  /// Drops the cached session so the next [acquire] starts fresh.
+  /// Call this on logout so a new login always gets a clean repository.
+  static void clearSession() {
+    _session?.dispose();
+    _session = null;
+  }
+
   final FirestoreService _service;
   final bool _isAdmin;
   final String? _staffId;

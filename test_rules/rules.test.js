@@ -12,6 +12,7 @@ const {
   collection,
   setDoc,
   updateDoc,
+  writeBatch,
 } = require('firebase/firestore');
 
 const PROJECT_ID = 'demo-rules-test';
@@ -235,6 +236,99 @@ async function runTests() {
     const adminADb = testEnv.authenticatedContext('adminA').firestore();
     await assertSucceeds(getDoc(doc(adminADb, 'shops', 'shopA')));
     await assertSucceeds(getDocs(collection(adminADb, 'shops', 'shopA', 'products')));
+  });
+
+  // 5. User created through the real create-shop batch
+  await test('user created through real create-shop batch can read and write products, sales and customer_payments', async () => {
+    const newAdminUid = 'admin_brand_new';
+    const newShopId = 'shop_brand_new';
+    const newJoinCode = 'BRAND9';
+    const newAdminDb = testEnv.authenticatedContext(newAdminUid).firestore();
+
+    // Execute the exact create-shop batch write
+    const batch = writeBatch(newAdminDb);
+    batch.set(doc(newAdminDb, 'shops', newShopId), {
+      name: 'Brand New Shop',
+      address: 'Nairobi',
+      phone: '0712345678',
+      footer: 'Thank you',
+      paper_size: '58mm',
+      owner_uid: newAdminUid,
+      join_code: newJoinCode,
+      created_at: new Date().toISOString(),
+    });
+    batch.set(doc(newAdminDb, 'users', newAdminUid), {
+      uid: newAdminUid,
+      shop_id: newShopId,
+      role: 'admin',
+      name: 'New Admin',
+      email: 'newadmin@test.com',
+      active: true,
+    });
+    batch.set(doc(newAdminDb, 'shops', newShopId, 'staff', newAdminUid), {
+      id: newAdminUid,
+      name: 'New Admin',
+      role: 'admin',
+      email: 'newadmin@test.com',
+      active: true,
+      auth_uid: newAdminUid,
+      shop_id: newShopId,
+    });
+    batch.set(doc(newAdminDb, 'joinCodes', newJoinCode), {
+      shopId: newShopId,
+    });
+    await assertSucceeds(batch.commit());
+
+    // 1. Can write and read products
+    await assertSucceeds(
+      setDoc(doc(newAdminDb, 'shops', newShopId, 'products', 'prod1'), {
+        name: 'Cement 50kg',
+        selling_price: 750,
+        quantity_on_hand: 100,
+      })
+    );
+    await assertSucceeds(getDocs(collection(newAdminDb, 'shops', newShopId, 'products')));
+
+    // 2. Can write and read product_costs
+    await assertSucceeds(
+      setDoc(doc(newAdminDb, 'shops', newShopId, 'product_costs', 'prod1'), {
+        cost_price: 600,
+      })
+    );
+    await assertSucceeds(getDocs(collection(newAdminDb, 'shops', newShopId, 'product_costs')));
+
+    // 3. Can write and read sales
+    await assertSucceeds(
+      setDoc(doc(newAdminDb, 'shops', newShopId, 'sales', 'sale1'), {
+        total: 750,
+        timestamp: new Date(),
+        staff_id: newAdminUid,
+      })
+    );
+    await assertSucceeds(getDocs(collection(newAdminDb, 'shops', newShopId, 'sales')));
+
+    // 4. Can write and read customer_payments
+    await assertSucceeds(
+      setDoc(doc(newAdminDb, 'shops', newShopId, 'customer_payments', 'pay1'), {
+        amount: 500,
+        customer_name: 'John',
+        timestamp: new Date(),
+      })
+    );
+    await assertSucceeds(getDocs(collection(newAdminDb, 'shops', newShopId, 'customer_payments')));
+
+    // 5. A DIFFERENT shop's user CANNOT read or write in this shop
+    const foreignDb = testEnv.authenticatedContext('cashierB').firestore();
+    await assertFails(getDocs(collection(foreignDb, 'shops', newShopId, 'products')));
+    await assertFails(
+      setDoc(doc(foreignDb, 'shops', newShopId, 'products', 'hack'), {
+        name: 'Hacked',
+        selling_price: 1,
+      })
+    );
+    await assertFails(getDocs(collection(foreignDb, 'shops', newShopId, 'sales')));
+    await assertFails(getDocs(collection(foreignDb, 'shops', newShopId, 'customer_payments')));
+    await assertFails(getDoc(doc(foreignDb, 'shops', newShopId)));
   });
 
   console.log(`\nResults: ${passed} passed, ${failed} failed\n`);

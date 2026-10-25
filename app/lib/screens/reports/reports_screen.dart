@@ -44,7 +44,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   FirestoreService? _injectedFirestoreService;
 
   FirestoreService get _firestoreService =>
-      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
+      _injectedFirestoreService ??= widget.firestoreService ??
+          FirestoreServiceImpl(widget.currentStaff.shopId);
 
   late final ReportsRepository _repo;
 

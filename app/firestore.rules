@@ -7,6 +7,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function hasUserData() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -15,16 +19,45 @@ service cloud.firestore {
       return getUserData().shop_id;
     }
 
-    function isAdmin() {
-      return isAuthenticated() && getUserData().role == 'admin' && getUserData().active == true;
+    function isShopOwner(shopId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/shops/$(shopId)) &&
+        get(/databases/$(database)/documents/shops/$(shopId)).data.owner_uid == request.auth.uid;
     }
 
-    function isCashier() {
-      return isAuthenticated() && getUserData().role == 'cashier' && getUserData().active == true;
+    function isShopStaff(shopId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)).data.active == true;
     }
 
     function belongsToShop(shopId) {
-      return isAuthenticated() && getShopId() == shopId && getUserData().active == true;
+      return isAuthenticated() && (
+        isShopOwner(shopId) ||
+        isShopStaff(shopId) ||
+        (hasUserData() && getShopId() == shopId && getUserData().active == true)
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (hasUserData() && getUserData().role == 'admin' && getUserData().active == true)
+      );
+    }
+
+    function isShopAdmin(shopId) {
+      return isAuthenticated() && (
+        isShopOwner(shopId) ||
+        (isAdmin() && belongsToShop(shopId)) ||
+        (isShopStaff(shopId) &&
+         get(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isCashier() {
+      return isAuthenticated() && (
+        (hasUserData() && getUserData().role == 'cashier' && getUserData().active == true)
+      );
     }
 
     // Top-level user lookup document
@@ -67,11 +100,11 @@ service cloud.firestore {
         (
           // Admin regenerating code for existing shop
           (exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)) &&
-           isAdmin() && belongsToShop(request.resource.data.shopId)) ||
+           isShopAdmin(request.resource.data.shopId)) ||
           // Initial shop creation (shop doc does not exist yet before batch commits)
           (!exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)))
         );
-      allow delete: if isAdmin() && belongsToShop(resource.data.shopId);
+      allow delete: if isShopAdmin(resource.data.shopId);
       allow update: if false;
     }
 
@@ -81,7 +114,7 @@ service cloud.firestore {
       allow list: if false;
       allow get: if isAuthenticated() && belongsToShop(shopId);
       allow create: if isAuthenticated() && request.resource.data.owner_uid == request.auth.uid;
-      allow update: if isAdmin() && belongsToShop(shopId);
+      allow update: if isShopAdmin(shopId);
       allow delete: if false;
 
       // Staff subcollection
@@ -89,7 +122,7 @@ service cloud.firestore {
         allow read: if isAuthenticated() && (request.auth.uid == staffId || belongsToShop(shopId));
         allow create: if isAuthenticated() && (
           // Admin of this shop can create staff
-          (isAdmin() && belongsToShop(shopId)) ||
+          isShopAdmin(shopId) ||
           // Shop owner during initial shop creation (shop does not exist yet before batch commits)
           (!exists(/databases/$(database)/documents/shops/$(shopId)) && request.auth.uid == staffId) ||
           // Cashier joining with valid join code matching this shop
@@ -98,16 +131,16 @@ service cloud.firestore {
            request.resource.data.join_code is string &&
            get(/databases/$(database)/documents/joinCodes/$(request.resource.data.join_code)).data.shopId == shopId)
         );
-        allow update: if isAdmin() && belongsToShop(shopId);
+        allow update: if isShopAdmin(shopId);
         allow delete: if false;
       }
 
       // Products
       match /products/{productId} {
         allow read: if belongsToShop(shopId);
-        allow create, delete: if isAdmin() && belongsToShop(shopId);
+        allow create, delete: if isShopAdmin(shopId);
         allow update: if belongsToShop(shopId) && (
-          isAdmin() ||
+          isShopAdmin(shopId) ||
           (isCashier() && request.resource.data.keys().hasOnly(resource.data.keys()) &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity_on_hand']) &&
            request.resource.data['quantity_on_hand'] is number)
@@ -116,33 +149,33 @@ service cloud.firestore {
 
       // Product costs (Admin only)
       match /product_costs/{productId} {
-        allow read, write: if isAdmin() && belongsToShop(shopId);
+        allow read, write: if isShopAdmin(shopId);
       }
 
       // Sales
       match /sales/{saleId} {
-        allow read: if belongsToShop(shopId) && (isAdmin() || resource.data.staff_id == request.auth.uid);
-        allow create: if belongsToShop(shopId) && isAuthenticated();
+        allow read: if belongsToShop(shopId) && (isShopAdmin(shopId) || resource.data.staff_id == request.auth.uid);
+        allow create: if belongsToShop(shopId);
         allow update, delete: if false;
       }
 
       // Sales costs (Admin only)
       match /sales_costs/{saleId} {
-        allow read: if isAdmin() && belongsToShop(shopId);
-        allow create: if belongsToShop(shopId) && isAuthenticated();
+        allow read: if isShopAdmin(shopId);
+        allow create: if belongsToShop(shopId);
         allow update, delete: if false;
       }
 
       // Customer payments
       match /customer_payments/{paymentId} {
-        allow read: if isAdmin() && belongsToShop(shopId);
-        allow create: if belongsToShop(shopId) && isAuthenticated();
+        allow read: if isShopAdmin(shopId);
+        allow create: if belongsToShop(shopId);
         allow update, delete: if false;
       }
 
       // Expenses
       match /expenses/{expenseId} {
-        allow read, write: if isAdmin() && belongsToShop(shopId);
+        allow read, write: if isShopAdmin(shopId);
       }
     }
 

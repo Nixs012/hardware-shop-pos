@@ -47,7 +47,8 @@ class _BillingScreenState extends State<BillingScreen>
   @override
   void initState() {
     super.initState();
-    _firestoreService = widget.firestoreService ?? FirestoreServiceImpl();
+    _firestoreService = widget.firestoreService ??
+        FirestoreServiceImpl(widget.currentStaff.shopId);
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.toLowerCase();

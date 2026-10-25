@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'billing/billing_screen.dart';
@@ -7,6 +8,7 @@ import 'settings/settings_screen.dart';
 import 'customer_credit/customer_credit_screen.dart';
 import '../models/staff.dart';
 import '../services/firestore_service.dart';
+import '../services/sync_service.dart';
 import '../utils/theme.dart';
 import '../widgets/sync_status_indicator.dart';
 
@@ -86,7 +88,11 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     _isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
-    _firestoreService = FirestoreServiceImpl();
+    final staffShopId = widget.currentStaff.shopId;
+    _firestoreService = FirestoreServiceImpl(staffShopId);
+    if (staffShopId != null && staffShopId.isNotEmpty) {
+      unawaited(SyncService.instance.switchShop(staffShopId));
+    }
     // For cashiers, set the auth UID so sales queries match Firestore rules
     if (!_isAdmin) {
       _firestoreService.setCashierAuthUid(widget.currentStaff.authUid);

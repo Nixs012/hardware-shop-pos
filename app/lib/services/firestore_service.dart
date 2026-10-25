@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/customer_payment.dart';
@@ -138,6 +139,7 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<Shop?> getShop() async {
+    debugPrint('[FirestoreService] GET shops/$shopId');
     final doc = await _shopRef.get();
     if (doc.exists && doc.data() != null) {
       return Shop.fromMap(doc.data()!, doc.id);
@@ -147,6 +149,7 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> updateShop(Shop shop) async {
+    debugPrint('[FirestoreService] UPDATE shops/$shopId');
     await _shopRef.update(shop.toMap());
   }
 
@@ -165,6 +168,8 @@ class FirestoreServiceImpl implements FirestoreService {
       }
     }
 
+    debugPrint(
+        '[FirestoreService] BATCH REGENERATE JOIN CODE on shops/$shopId (delete joinCodes/$codeToDelete, set joinCodes/$newCode)');
     final batch = _db.batch();
     batch.update(_shopRef, {'join_code': newCode});
     if (codeToDelete != null && codeToDelete.isNotEmpty) {
@@ -180,6 +185,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> addProduct(Product product) {
+    debugPrint(
+        '[FirestoreService] ADD PRODUCT on shops/$shopId/products/${product.id} and shops/$shopId/product_costs/${product.id}');
     final batch = _db.batch();
     final productsColl = _db.collection('shops').doc(shopId).collection('products');
     final costsColl = _db.collection('shops').doc(shopId).collection('product_costs');
@@ -191,6 +198,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> updateProduct(Product product) {
+    debugPrint(
+        '[FirestoreService] UPDATE PRODUCT on shops/$shopId/products/${product.id} and shops/$shopId/product_costs/${product.id}');
     final batch = _db.batch();
     final productsColl = _db.collection('shops').doc(shopId).collection('products');
     final costsColl = _db.collection('shops').doc(shopId).collection('product_costs');
@@ -202,6 +211,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> deleteProduct(String productId) {
+    debugPrint(
+        '[FirestoreService] DELETE PRODUCT on shops/$shopId/products/$productId and shops/$shopId/product_costs/$productId');
     final batch = _db.batch();
     final productsColl = _db.collection('shops').doc(shopId).collection('products');
     final costsColl = _db.collection('shops').doc(shopId).collection('product_costs');
@@ -219,6 +230,8 @@ class FirestoreServiceImpl implements FirestoreService {
       return _productStreams[key]!.stream;
     }
 
+    debugPrint(
+        '[FirestoreService] STREAM products: query start on shops/$shopId/products (isAdmin: $isAdmin)');
     Stream<List<Product>> baseStream;
     final productsColl = _db.collection('shops').doc(shopId).collection('products');
     final costsColl = _db.collection('shops').doc(shopId).collection('product_costs');
@@ -232,6 +245,8 @@ class FirestoreServiceImpl implements FirestoreService {
         return products;
       });
     } else {
+      debugPrint(
+          '[FirestoreService] STREAM product_costs: query start on shops/$shopId/product_costs');
       final controller = StreamController<List<Product>>.broadcast();
       List<QueryDocumentSnapshot<Map<String, dynamic>>>? productDocs;
       Map<String, Map<String, dynamic>> costs = {};
@@ -277,6 +292,7 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> processSale(Sale sale, {bool includeCostSnapshot = true}) async {
+    debugPrint('[FirestoreService] PROCESS SALE on shops/$shopId/sales/${sale.id}');
     await SyncService.instance.queueSale(
       sale,
       shopId: shopId,
@@ -303,6 +319,8 @@ class FirestoreServiceImpl implements FirestoreService {
       return _saleStreams[key]!.stream;
     }
 
+    debugPrint(
+        '[FirestoreService] STREAM sales: query start on shops/$shopId/sales (isAdmin: $isAdmin, staffId: $effectiveStaffId)');
     Stream<List<Sale>> baseStream;
     final salesColl = _db.collection('shops').doc(shopId).collection('sales');
     final costsColl = _db.collection('shops').doc(shopId).collection('sales_costs');
@@ -320,6 +338,8 @@ class FirestoreServiceImpl implements FirestoreService {
         return sales;
       });
     } else {
+      debugPrint(
+          '[FirestoreService] STREAM sales_costs: query start on shops/$shopId/sales_costs');
       final controller = StreamController<List<Sale>>.broadcast();
       List<QueryDocumentSnapshot<Map<String, dynamic>>>? saleDocs;
       Map<String, Map<String, dynamic>> costs = {};
@@ -368,6 +388,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<Sale?> getLatestSale({String? staffId}) async {
+    debugPrint(
+        '[FirestoreService] GET latest sale on shops/$shopId/sales (staffId: $staffId)');
     Query<Map<String, dynamic>> query = _db
         .collection('shops')
         .doc(shopId)
@@ -387,6 +409,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> recordCustomerPayment(CustomerPayment payment) {
+    debugPrint(
+        '[FirestoreService] RECORD PAYMENT on shops/$shopId/customer_payments/${payment.id}');
     final paymentsColl = _db.collection('shops').doc(shopId).collection('customer_payments');
     if (SyncService.instance.isOnline) {
       return paymentsColl.doc(payment.id).set(payment.toMap());
@@ -397,6 +421,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<CustomerPayment>> getCustomerPaymentsStream() {
+    debugPrint(
+        '[FirestoreService] STREAM customer_payments: query start on shops/$shopId/customer_payments');
     final paymentsColl = _db.collection('shops').doc(shopId).collection('customer_payments');
     _paymentsStream ??= CachedReplayStream<List<CustomerPayment>>(
       paymentsColl
@@ -413,6 +439,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<Staff>> getStaffStream() {
+    debugPrint(
+        '[FirestoreService] STREAM staff: query start on shops/$shopId/staff');
     final staffColl = _db.collection('shops').doc(shopId).collection('staff');
     _staffStream ??= CachedReplayStream<List<Staff>>(
       staffColl.snapshots().map((snapshot) {
@@ -426,6 +454,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> updateStaff(Staff staff) {
+    debugPrint(
+        '[FirestoreService] UPDATE STAFF on shops/$shopId/staff/${staff.id}');
     return _db
         .collection('shops')
         .doc(shopId)
@@ -436,6 +466,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> addExpense(Expense expense) {
+    debugPrint(
+        '[FirestoreService] ADD EXPENSE on shops/$shopId/expenses/${expense.id}');
     return _db
         .collection('shops')
         .doc(shopId)
@@ -446,6 +478,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> updateExpense(Expense expense) {
+    debugPrint(
+        '[FirestoreService] UPDATE EXPENSE on shops/$shopId/expenses/${expense.id}');
     return _db
         .collection('shops')
         .doc(shopId)
@@ -456,6 +490,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> deleteExpense(String expenseId) {
+    debugPrint(
+        '[FirestoreService] DELETE EXPENSE on shops/$shopId/expenses/$expenseId');
     return _db
         .collection('shops')
         .doc(shopId)
@@ -466,6 +502,8 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Stream<List<Expense>> getExpensesStream() {
+    debugPrint(
+        '[FirestoreService] STREAM expenses: query start on shops/$shopId/expenses');
     final expensesColl = _db.collection('shops').doc(shopId).collection('expenses');
     _expensesStream ??= CachedReplayStream<List<Expense>>(
       expensesColl.snapshots().map((snapshot) {

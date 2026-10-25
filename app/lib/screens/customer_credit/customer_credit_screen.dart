@@ -23,7 +23,8 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
   FirestoreService? _injectedFirestoreService;
 
   FirestoreService get _firestoreService =>
-      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
+      _injectedFirestoreService ??= widget.firestoreService ??
+          FirestoreServiceImpl(widget.currentStaff.shopId);
 
   String _searchQuery = '';
 

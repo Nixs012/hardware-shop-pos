@@ -11,7 +11,9 @@ import '../../services/auth_service.dart';
 import '../../services/csv_export_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
+import '../../services/reports_repository.dart';
 import '../../utils/theme.dart';
+import '../auth/welcome_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Staff currentStaff;
@@ -33,7 +35,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   PaperSize _paperSize = PaperSize.mm58;
 
   FirestoreService get _firestoreService =>
-      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
+      _injectedFirestoreService ??= widget.firestoreService ??
+          FirestoreServiceImpl(widget.currentStaff.shopId);
   bool _printerConnected = false;
   bool _scanning = false;
 
@@ -451,6 +454,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               onPressed: () async {
                 await AuthService().logout();
+                ReportsRepository.clearSession();
+                if (!context.mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  (route) => false,
+                );
               },
               icon: const Icon(Icons.logout, color: Colors.white),
               label: const Text(

@@ -395,8 +395,11 @@ class SyncService {
   bool get isOnline => _isOnline;
   int get pendingCount => _pendingCount;
   bool get isSyncing => _isSyncing;
+  String _currentShopId = 'default_shop';
+  String get currentShopId => _currentShopId;
 
   Future<void> init([String shopId = 'default_shop']) async {
+    _currentShopId = shopId;
     if (_storage is HiveSyncStorage) {
       _storage.setShopId(shopId);
     }
@@ -418,7 +421,7 @@ class SyncService {
         _isOnline = onlineNow;
         _notifyStatus();
         if (changed && _isOnline) {
-          unawaited(drainQueue('default_shop'));
+          unawaited(drainQueue(_currentShopId));
         }
       });
     }
@@ -427,6 +430,7 @@ class SyncService {
   }
 
   Future<void> switchShop(String shopId) async {
+    _currentShopId = shopId;
     if (_storage is HiveSyncStorage) {
       _storage.setShopId(shopId);
       await _storage.init();
@@ -504,12 +508,13 @@ class SyncService {
     }
   }
 
-  Future<List<FailedSaleRecord>> getFailedSales([String shopId = 'default_shop']) async {
+  Future<List<FailedSaleRecord>> getFailedSales([String? shopId]) async {
     final needsReview = await _storage.getNeedsReviewSales();
     return needsReview.map((q) => q.toFailedSaleRecord()).toList();
   }
 
-  Future<void> retryFailedSale(FailedSaleRecord record, [String shopId = 'default_shop']) async {
+  Future<void> retryFailedSale(FailedSaleRecord record, [String? shopId]) async {
+    final effectiveShopId = (shopId != null && shopId.isNotEmpty) ? shopId : _currentShopId;
     await _storage.removeNeedsReview(record.sale.id);
     final queued = QueuedSale(
       sale: record.sale,
@@ -523,18 +528,19 @@ class SyncService {
     _pendingCount = await _storage.getPendingCount();
     _notifyStatus();
     if (_isOnline) {
-      await drainQueue(shopId);
+      await drainQueue(effectiveShopId);
     }
   }
 
-  Future<void> drainQueue([String shopId = 'default_shop']) async {
+  Future<void> drainQueue([String? shopId]) async {
+    final effectiveShopId = (shopId != null && shopId.isNotEmpty) ? shopId : _currentShopId;
     if (_isSyncing || !_isOnline) return;
     _isSyncing = true;
     _notifyStatus();
 
     try {
-      await _drainSales(shopId);
-      await _drainPayments(shopId);
+      await _drainSales(effectiveShopId);
+      await _drainPayments(effectiveShopId);
     } finally {
       _isSyncing = false;
       _pendingCount = await _storage.getPendingCount();
