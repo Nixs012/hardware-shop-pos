@@ -28,7 +28,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
   bool get _isAdmin => widget.currentStaff.role.toLowerCase() == 'admin';
 
   FirestoreService get _firestoreService =>
-      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
+      _injectedFirestoreService ??= widget.firestoreService ??
+          FirestoreServiceImpl(widget.currentStaff.shopId);
 
   @override
   void initState() {
@@ -122,7 +123,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               backgroundColor: AppTheme.primaryColor,
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProductFormScreen()),
+                  MaterialPageRoute(builder: (_) => ProductFormScreen(firestoreService: _firestoreService)),
                 );
               },
               icon: const Icon(Icons.add, color: Colors.white),
@@ -435,7 +436,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ProductFormScreen(existingProduct: product),
+                                      ProductFormScreen(existingProduct: product, firestoreService: _firestoreService),
                                 ),
                               );
                             },
@@ -591,7 +592,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) =>
-                                  ProductFormScreen(existingProduct: product),
+                                  ProductFormScreen(existingProduct: product, firestoreService: _firestoreService),
                             ),
                           );
                         },
@@ -613,7 +614,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) =>
-                            ProductFormScreen(existingProduct: product),
+                            ProductFormScreen(existingProduct: product, firestoreService: _firestoreService),
                       ),
                     );
                   }

@@ -19,7 +19,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   FirestoreService? _injectedFirestoreService;
 
   FirestoreService get _firestoreService =>
-      _injectedFirestoreService ??= widget.firestoreService ?? FirestoreServiceImpl();
+      _injectedFirestoreService ??= widget.firestoreService ??
+          FirestoreServiceImpl('default_shop');
 
   late final TextEditingController _nameController;
   late final TextEditingController _skuController;
