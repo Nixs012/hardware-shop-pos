@@ -179,8 +179,9 @@ class ReportsRepository extends ChangeNotifier {
     this._isAdmin,
     this._staffId,
   ) {
-    _status[ReportsSource.sales] =
-        const ReportsSourceStatus(ReportsSourceState.loading);
+    _status[ReportsSource.sales] = _isAdmin
+        ? const ReportsSourceStatus(ReportsSourceState.loading)
+        : const ReportsSourceStatus(ReportsSourceState.notUsed);
     _status[ReportsSource.products] =
         const ReportsSourceStatus(ReportsSourceState.loading);
     _status[ReportsSource.expenses] = _isAdmin
@@ -259,12 +260,12 @@ class ReportsRepository extends ChangeNotifier {
   void start() {
     if (_started || _disposed) return;
     _started = true;
-    _subscribeSales();
-    _subscribeProducts();
     if (_isAdmin) {
+      _subscribeSales();
       _subscribeExpenses();
       _subscribePayments();
     }
+    _subscribeProducts();
   }
 
   // ---------------------------------------------------------------------
@@ -489,7 +490,7 @@ class ReportsRepository extends ChangeNotifier {
     _paymentsSub = null;
 
     for (final s in [
-      ReportsSource.sales,
+      if (_isAdmin) ReportsSource.sales,
       ReportsSource.products,
       if (_isAdmin) ReportsSource.expenses,
       if (_isAdmin) ReportsSource.customerPayments,
@@ -499,12 +500,12 @@ class ReportsRepository extends ChangeNotifier {
     _cache.clear();
     if (!_disposed) notifyListeners();
 
-    _subscribeSales();
-    _subscribeProducts();
     if (_isAdmin) {
+      _subscribeSales();
       _subscribeExpenses();
       _subscribePayments();
     }
+    _subscribeProducts();
     _armLoadingTimeouts();
   }
 
@@ -565,7 +566,6 @@ class ReportsRepository extends ChangeNotifier {
     final Map<String, double> paymentBreakdown = {
       'Cash': 0.0,
       'M-Pesa': 0.0,
-      'Card': 0.0,
       'Credit': 0.0,
     };
 

@@ -150,8 +150,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Admin sees 4 tabs, Cashier sees 2 (Sales Summary, Stock Balance)
-    final tabCount = _isAdmin ? 4 : 2;
+    // Admin sees 4 tabs, Cashier sees 1 (Stock Balance)
+    final tabCount = _isAdmin ? 4 : 1;
     final range = _getSelectedRange();
     final data = _repo.dataFor(
       range: range,
@@ -184,7 +184,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              const Tab(text: 'Sales Summary'),
+              if (_isAdmin) const Tab(text: 'Sales Summary'),
               if (_isAdmin) const Tab(text: 'Profit & Loss'),
               if (_isAdmin) const Tab(text: 'Top Sellers'),
               const Tab(text: 'Stock Balance'),
@@ -197,7 +197,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             Expanded(
               child: TabBarView(
                 children: [
-                  KeepAliveTab(child: _buildSalesSummaryTab(data)),
+                  if (_isAdmin) KeepAliveTab(child: _buildSalesSummaryTab(data)),
                   if (_isAdmin) KeepAliveTab(child: _buildProfitLossTab(data)),
                   if (_isAdmin) KeepAliveTab(child: _buildTopSellersTab(data)),
                   KeepAliveTab(child: _buildStockBalanceTab(data)),
@@ -1588,14 +1588,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ? '${((breakdown['M-Pesa'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
                   : '0.0%',
             ),
-            const Divider(color: Colors.white12, height: 16),
-            _buildPaymentRow(
-              'Card',
-              breakdown['Card'] ?? 0.0,
-              totalRevenue > 0
-                  ? '${((breakdown['Card'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
-                  : '0.0%',
-            ),
+
             const Divider(color: Colors.white12, height: 16),
             _buildPaymentRow(
               'Credit',

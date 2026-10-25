@@ -674,23 +674,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Cashier should NOT query customer payments or expenses
+      // Cashier should NOT query customer payments, expenses, or sales
       expect(mockFs.getCustomerPaymentsStreamCalls, equals(0));
       expect(mockFs.getExpensesStreamCalls, equals(0));
+      expect(mockFs.getSalesStreamCalls, equals(0));
 
-      // Cashier must NOT see Credit & Khata Tracking card or profit
+      // Cashier must NOT see Sales Summary, Credit & Khata Tracking card or profit
+      expect(find.text('Sales Summary'), findsNothing);
       expect(find.text('Credit & Khata Tracking'), findsNothing);
       expect(find.text('Gross Profit'), findsNothing);
 
-      // Switch to Stock Balance tab and back
-      await tester.tap(find.text('Stock Balance'), warnIfMissed: false);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Sales Summary'), warnIfMissed: false);
-      await tester.pumpAndSettle();
-
-      expect(mockFs.getCustomerPaymentsStreamCalls, equals(0));
-      expect(mockFs.getExpensesStreamCalls, equals(0));
-      expect(find.text('Credit & Khata Tracking'), findsNothing);
+      // Cashier sees Stock Balance tab
+      expect(find.text('Stock Balance'), findsOneWidget);
 
       ReportsRepository.resetSessionForTesting();
       mockFs.dispose();

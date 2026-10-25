@@ -177,8 +177,6 @@ class _BillingScreenState extends State<BillingScreen>
               const SizedBox(height: 8),
               _paymentButton(ctx, 'M-Pesa'),
               const SizedBox(height: 8),
-              _paymentButton(ctx, 'Card'),
-              const SizedBox(height: 8),
               _paymentButton(ctx, 'Credit'),
             ],
           ),
