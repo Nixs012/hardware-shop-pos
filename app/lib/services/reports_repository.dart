@@ -184,9 +184,8 @@ class ReportsRepository extends ChangeNotifier {
         : const ReportsSourceStatus(ReportsSourceState.notUsed);
     _status[ReportsSource.products] =
         const ReportsSourceStatus(ReportsSourceState.loading);
-    _status[ReportsSource.expenses] = _isAdmin
-        ? const ReportsSourceStatus(ReportsSourceState.loading)
-        : const ReportsSourceStatus(ReportsSourceState.notUsed);
+    _status[ReportsSource.expenses] =
+        const ReportsSourceStatus(ReportsSourceState.notUsed);
     _status[ReportsSource.customerPayments] = _isAdmin
         ? const ReportsSourceStatus(ReportsSourceState.loading)
         : const ReportsSourceStatus(ReportsSourceState.notUsed);
@@ -240,7 +239,6 @@ class ReportsRepository extends ChangeNotifier {
 
   StreamSubscription<List<Sale>>? _salesSub;
   StreamSubscription<List<Product>>? _productsSub;
-  StreamSubscription<List<Expense>>? _expensesSub;
   StreamSubscription<List<CustomerPayment>>? _paymentsSub;
 
   final Map<ReportsSource, Timer> _timers = {};
@@ -248,7 +246,6 @@ class ReportsRepository extends ChangeNotifier {
 
   List<Sale> _sales = const [];
   List<CustomerPayment> _payments = const [];
-  List<Expense> _expenses = const [];
   List<Product> _products = const [];
 
   final Map<String, ReportsData> _cache = {};
@@ -262,7 +259,6 @@ class ReportsRepository extends ChangeNotifier {
     _started = true;
     if (_isAdmin) {
       _subscribeSales();
-      _subscribeExpenses();
       _subscribePayments();
     }
     _subscribeProducts();
@@ -346,34 +342,6 @@ class ReportsRepository extends ChangeNotifier {
       },
       onDone: () {
         debugPrint('[ReportsRepo] products: source stream closed');
-      },
-    );
-  }
-
-  void _subscribeExpenses() {
-    final stopwatch = Stopwatch()..start();
-    debugPrint('[ReportsRepo] expenses: query start (admin only)');
-    _armTimeout(ReportsSource.expenses, 'expenses');
-    _expensesSub = _service.getExpensesStream().listen(
-      (expenses) {
-        if (_status[ReportsSource.expenses]!.state !=
-            ReportsSourceState.ready) {
-          debugPrint(
-            '[ReportsRepo] expenses: first result after ${stopwatch.elapsedMilliseconds}ms '
-            '(${expenses.length} docs)',
-          );
-        }
-        _cancelTimer(ReportsSource.expenses);
-        _expenses = expenses;
-        _setStatus(ReportsSource.expenses, ReportsSourceState.ready);
-      },
-      onError: (Object err, StackTrace stack) {
-        debugPrint('[ReportsRepo] expenses: ERROR $err');
-        _cancelTimer(ReportsSource.expenses);
-        _setStatus(ReportsSource.expenses, ReportsSourceState.error, '$err');
-      },
-      onDone: () {
-        debugPrint('[ReportsRepo] expenses: source stream closed');
       },
     );
   }
@@ -482,17 +450,14 @@ class ReportsRepository extends ChangeNotifier {
 
     await _salesSub?.cancel();
     await _productsSub?.cancel();
-    await _expensesSub?.cancel();
     await _paymentsSub?.cancel();
     _salesSub = null;
     _productsSub = null;
-    _expensesSub = null;
     _paymentsSub = null;
 
     for (final s in [
       if (_isAdmin) ReportsSource.sales,
       ReportsSource.products,
-      if (_isAdmin) ReportsSource.expenses,
       if (_isAdmin) ReportsSource.customerPayments,
     ]) {
       _status[s] = const ReportsSourceStatus(ReportsSourceState.loading);
@@ -502,7 +467,6 @@ class ReportsRepository extends ChangeNotifier {
 
     if (_isAdmin) {
       _subscribeSales();
-      _subscribeExpenses();
       _subscribePayments();
     }
     _subscribeProducts();
@@ -553,10 +517,7 @@ class ReportsRepository extends ChangeNotifier {
           !payment.timestamp.isAfter(range.end);
     }).toList();
 
-    final periodExpenses = _expenses.where((expense) {
-      return !expense.date.isBefore(range.start) &&
-          !expense.date.isAfter(range.end);
-    }).toList();
+    const periodExpenses = <Expense>[];
 
     // ---- Sales Summary aggregates ----
     double totalRevenue = 0;
@@ -603,15 +564,9 @@ class ReportsRepository extends ChangeNotifier {
       }
     }
 
-    final totalExpenses = periodExpenses.fold<double>(
-      0.0,
-      (sum, e) => sum + e.amount,
-    );
-
-    // Canonical formula from pos-domain-rules:
-    // period_profit = sum(line_profit) - sum(recorded expenses)
+    const totalExpenses = 0.0;
     final plGrossProfit = plRevenue - plCogs;
-    final netProfit = plGrossProfit - totalExpenses;
+    final netProfit = plGrossProfit;
 
     // Single shared definition of outstanding with the Credit screen.
     final outstanding = computeOutstandingBalance(
@@ -654,11 +609,9 @@ class ReportsRepository extends ChangeNotifier {
     _cancelAllTimers();
     _salesSub?.cancel();
     _productsSub?.cancel();
-    _expensesSub?.cancel();
     _paymentsSub?.cancel();
     _salesSub = null;
     _productsSub = null;
-    _expensesSub = null;
     _paymentsSub = null;
     _cache.clear();
     super.dispose();

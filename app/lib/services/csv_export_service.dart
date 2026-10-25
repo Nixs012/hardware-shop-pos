@@ -190,7 +190,8 @@ class CsvExportService {
         dialogTitle: 'Export Sales',
         fileName: 'sales_export_${_timestamp()}.csv',
         bytes: utf8.encode(csv),
-        mimeType: 'text/csv',
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
       );
 
       if (result == null) {

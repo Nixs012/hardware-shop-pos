@@ -624,7 +624,7 @@ void main() {
       // Initial query counts
       expect(mockFs.getSalesStreamCalls, equals(1));
       expect(mockFs.getProductsStreamCalls, equals(1));
-      expect(mockFs.getExpensesStreamCalls, equals(1));
+      expect(mockFs.getExpensesStreamCalls, equals(0));
       expect(mockFs.getCustomerPaymentsStreamCalls, equals(1));
 
       // Admin sees Credit & Khata Tracking card
@@ -649,7 +649,7 @@ void main() {
       // Ensure stream calls did NOT increase upon switching tabs
       expect(mockFs.getSalesStreamCalls, equals(1));
       expect(mockFs.getProductsStreamCalls, equals(1));
-      expect(mockFs.getExpensesStreamCalls, equals(1));
+      expect(mockFs.getExpensesStreamCalls, equals(0));
       expect(mockFs.getCustomerPaymentsStreamCalls, equals(1));
 
       // Credit card is still rendered

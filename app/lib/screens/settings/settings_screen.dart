@@ -152,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ---------------------------------------------------------------------------
 
   Future<void> _exportSales() async {
-    final service = CsvExportService();
+    final service = CsvExportService(widget.currentStaff.shopId);
     try {
       final csv = await service.exportSalesToCsv();
       if (!mounted) return;
@@ -184,7 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _importProducts() async {
-    final service = CsvExportService();
+    final service = CsvExportService(widget.currentStaff.shopId);
     try {
       final result = await service.importProductsFromCsv();
       if (!mounted) return;
@@ -301,7 +301,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               runSpacing: 12,
               children: [
                 ElevatedButton.icon(
-                  onPressed: kIsWeb ? null : _importProducts,
+                  onPressed: _importProducts,
                   icon: const Icon(Icons.file_open),
                   label: const Text('Import Products (CSV)'),
                 ),
@@ -312,18 +312,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            if (kIsWeb)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'File import/export requires the Android app. '
-                  'On the web, only export (download) is available.',
-                  style: TextStyle(
-                    color: AppTheme.secondaryColor,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
           ],
         ),
       ),

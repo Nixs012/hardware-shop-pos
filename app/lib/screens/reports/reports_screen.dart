@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
-import '../../models/expense.dart';
 import '../../models/product.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
@@ -133,10 +131,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
         return DateTimeRange(start: start, end: end);
     }
-  }
-
-  String _formatDate(DateTime dt) {
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
   String _money(double amount) {
@@ -437,34 +431,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   message: data.salesStatus.message,
                   onRetry: () => _repo.retry(ReportsSource.sales),
                 ),
-              if (data.expensesStatus.isFailed)
-                SourceErrorBanner(
-                  title: 'Expenses loading failed',
-                  message: data.expensesStatus.message,
-                  onRetry: () => _repo.retry(ReportsSource.expenses),
-                ),
               const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Period Financials',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Expense'),
-                    onPressed: _showAddExpenseDialog,
-                  ),
-                ],
+              const Text(
+                'Period Financials',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 16),
               if (isDesktop)
@@ -490,10 +464,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildMetricCard(
-                        title: 'Operating Expenses',
-                        value: _money(data.totalExpenses),
-                        icon: Icons.receipt_long,
-                        color: Colors.orange,
+                        title: 'Gross Profit',
+                        value: _money(data.plGrossProfit),
+                        icon: Icons.account_balance_wallet,
+                        color: data.plGrossProfit >= 0 ? Colors.green : Colors.red,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -501,7 +475,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       child: _buildMetricCard(
                         title: 'Net Profit',
                         value: _money(data.netProfit),
-                        icon: Icons.account_balance_wallet,
+                        icon: Icons.savings,
                         color: data.netProfit >= 0 ? Colors.green : Colors.red,
                       ),
                     ),
@@ -534,10 +508,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   children: [
                     Expanded(
                       child: _buildMetricCard(
-                        title: 'Expenses',
-                        value: _money(data.totalExpenses),
-                        icon: Icons.receipt_long,
-                        color: Colors.orange,
+                        title: 'Gross Profit',
+                        value: _money(data.plGrossProfit),
+                        icon: Icons.account_balance_wallet,
+                        color: data.plGrossProfit >= 0 ? Colors.green : Colors.red,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -545,7 +519,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       child: _buildMetricCard(
                         title: 'Net Profit',
                         value: _money(data.netProfit),
-                        icon: Icons.account_balance_wallet,
+                        icon: Icons.savings,
                         color: data.netProfit >= 0 ? Colors.green : Colors.red,
                       ),
                     ),
@@ -593,12 +567,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         data.plGrossProfit >= 0 ? Colors.green : Colors.red,
                         isBold: true,
                       ),
-                      const Divider(color: Colors.white12, height: 20),
-                      _buildPLRow(
-                        'Operating Expenses (Rent, Wages, Transport)',
-                        '- ${_money(data.totalExpenses)}',
-                        Colors.orange,
-                      ),
                       const Divider(color: Colors.white24, height: 24),
                       _buildPLRow(
                         'Net Profit',
@@ -618,138 +586,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              _buildExpensesListCard(data.periodExpenses),
             ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildExpensesListCard(List<Expense> expenses) {
-    return Card(
-      color: Colors.white.withValues(alpha: 0.03),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Recorded Expenses Ledger',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Flexible(
-                  child: Text(
-                    '${expenses.length} record(s)',
-                    style: const TextStyle(
-                      color: AppTheme.secondaryColor,
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (expenses.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.0),
-                child: Text(
-                  'No operating expenses recorded for this period. Use "Add Expense" to log rent, transport, wages, etc.',
-                  style: TextStyle(
-                    color: AppTheme.secondaryColor,
-                    fontSize: 13,
-                  ),
-                ),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: expenses.length,
-                separatorBuilder: (context, index) =>
-                    const Divider(color: Colors.white12),
-                itemBuilder: (context, index) {
-                  final exp = expenses[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.orange.withValues(alpha: 0.15),
-                      child: const Icon(
-                        Icons.receipt_long,
-                        color: Colors.orange,
-                        size: 18,
-                      ),
-                    ),
-                    title: Text(
-                      exp.category,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      _formatDate(exp.date),
-                      style: const TextStyle(
-                        color: AppTheme.secondaryColor,
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _money(exp.amount),
-                          style: const TextStyle(
-                            color: Colors.orangeAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            size: 18,
-                            color: Colors.blueAccent,
-                          ),
-                          tooltip: 'Edit Expense',
-                          onPressed: () => _showEditExpenseDialog(exp),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: Colors.redAccent,
-                          ),
-                          tooltip: 'Delete Expense',
-                          onPressed: () => _confirmDeleteExpense(exp),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1809,184 +1649,5 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
     );
   }
-
-  void _showAddExpenseDialog() {
-    final categoryController = TextEditingController(text: 'Rent');
-    final amountController = TextEditingController();
-    final noteController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Add Operating Expense', style: TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: categoryController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Category (Rent, Wages, Transport, etc.)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amountController,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Amount (KSh)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: noteController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Note (Optional)'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
-              if (amount <= 0) return;
-
-              final expense = Expense(
-                id: const Uuid().v4(),
-                date: DateTime.now(),
-                category: categoryController.text.trim(),
-                amount: amount,
-                note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
-              );
-
-              await _firestoreService.addExpense(expense);
-              if (!dialogCtx.mounted) return;
-              Navigator.pop(dialogCtx);
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Expense added successfully')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditExpenseDialog(Expense expense) {
-    final categoryController = TextEditingController(text: expense.category);
-    final amountController = TextEditingController(text: expense.amount.toString());
-    final noteController = TextEditingController(text: expense.note ?? '');
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Edit Operating Expense', style: TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: categoryController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Category'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amountController,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Amount (KSh)'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: noteController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Note (Optional)'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
-              if (amount <= 0) return;
-
-              final updated = Expense(
-                id: expense.id,
-                date: expense.date,
-                category: categoryController.text.trim(),
-                amount: amount,
-                note: noteController.text.trim().isEmpty ? null : noteController.text.trim(),
-              );
-
-              await _firestoreService.updateExpense(updated);
-              if (!dialogCtx.mounted) return;
-              Navigator.pop(dialogCtx);
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Expense updated successfully')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteExpense(Expense expense) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Delete Expense', style: TextStyle(color: Colors.white)),
-        content: Text(
-          'Are you sure you want to delete ${expense.category} (${_money(expense.amount)})?',
-          style: const TextStyle(color: AppTheme.secondaryColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              await _firestoreService.deleteExpense(expense.id);
-              if (!dialogCtx.mounted) return;
-              Navigator.pop(dialogCtx);
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Expense deleted successfully')),
-              );
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
 }
+
