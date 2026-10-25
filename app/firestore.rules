@@ -60,6 +60,14 @@ service cloud.firestore {
       );
     }
 
+    function isShopCashier(shopId) {
+      return isAuthenticated() && (
+        isCashier() ||
+        (isShopStaff(shopId) &&
+         get(/databases/$(database)/documents/shops/$(shopId)/staff/$(request.auth.uid)).data.role == 'cashier')
+      );
+    }
+
     // Top-level user lookup document
     match /users/{uid} {
       allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
@@ -141,7 +149,7 @@ service cloud.firestore {
         allow create, delete: if isShopAdmin(shopId);
         allow update: if belongsToShop(shopId) && (
           isShopAdmin(shopId) ||
-          (isCashier() && request.resource.data.keys().hasOnly(resource.data.keys()) &&
+          (isShopCashier(shopId) &&
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity_on_hand']) &&
            request.resource.data['quantity_on_hand'] is number)
         );
@@ -154,7 +162,11 @@ service cloud.firestore {
 
       // Sales
       match /sales/{saleId} {
-        allow read: if belongsToShop(shopId) && (isShopAdmin(shopId) || resource.data.staff_id == request.auth.uid);
+        allow read: if belongsToShop(shopId) && (
+          isShopAdmin(shopId) ||
+          resource == null ||
+          resource.data.staff_id == request.auth.uid
+        );
         allow create: if belongsToShop(shopId);
         allow update, delete: if false;
       }

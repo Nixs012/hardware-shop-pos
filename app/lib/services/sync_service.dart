@@ -437,6 +437,9 @@ class SyncService {
     }
     _pendingCount = await _storage.getPendingCount();
     _notifyStatus();
+    if (_isOnline && _pendingCount > 0) {
+      unawaited(drainQueue(shopId));
+    }
   }
 
   Future<void> clearLocalCaches() async {
@@ -458,7 +461,9 @@ class SyncService {
         r == ConnectivityResult.wifi ||
         r == ConnectivityResult.mobile ||
         r == ConnectivityResult.ethernet ||
-        r == ConnectivityResult.vpn);
+        r == ConnectivityResult.vpn ||
+        r == ConnectivityResult.other ||
+        (r != ConnectivityResult.none && r != ConnectivityResult.bluetooth));
   }
 
   void _notifyStatus() {
@@ -563,8 +568,19 @@ class SyncService {
           final saleRef = db.collection('shops').doc(shopId).collection('sales').doc(saleId);
           final costRef = db.collection('shops').doc(shopId).collection('sales_costs').doc(saleId);
 
-          final existing = await saleRef.get();
-          if (!existing.exists) {
+          debugPrint(
+              '[SyncService] Draining sale $saleId to shops/$shopId/sales (includeCostSnapshot: ${queued.includeCostSnapshot})...');
+
+          bool exists = false;
+          try {
+            final existing = await saleRef.get();
+            exists = existing.exists;
+          } catch (e) {
+            debugPrint('[SyncService] saleRef.get check for $saleId caught: $e');
+            exists = false;
+          }
+
+          if (!exists) {
             final batch = db.batch();
             batch.set(saleRef, queued.sale.toMap());
             if (queued.includeCostSnapshot) {
@@ -578,11 +594,14 @@ class SyncService {
               });
             }
             await batch.commit();
+            debugPrint('[SyncService] Sale $saleId successfully committed to shops/$shopId/sales');
           }
         }
 
         await _storage.removePending(queued.sale.id);
-      } catch (e) {
+        debugPrint('[SyncService] Sale ${queued.sale.id} removed from pending queue');
+      } catch (e, stack) {
+        debugPrint('[SyncService] ERROR draining sale ${queued.sale.id}: $e\n$stack');
         final newRetryCount = queued.retryCount + 1;
         if (newRetryCount >= maxRetries) {
           await _storage.removePending(queued.sale.id);
