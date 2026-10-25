@@ -63,9 +63,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   bool get _isAdmin => widget.currentStaff.role.toLowerCase() == 'admin';
 
+  Stream<List<Staff>>? _staffStream;
+
   @override
   void initState() {
     super.initState();
+    if (_isAdmin) {
+      _staffStream = _firestoreService.getStaffStream();
+    }
     _repo = ReportsRepository.acquire(
       service: _firestoreService,
       isAdmin: _isAdmin,
@@ -252,7 +257,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildFilterBar(),
+              _buildFilterBar(data.categories),
               if (data.salesStatus.isFailed)
                 SourceErrorBanner(
                   title: 'Sales data loading failed',
@@ -361,11 +366,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     const SizedBox(width: 24),
                     Expanded(
                       flex: 4,
-                      child: _buildSalesInsightsCard(
-                        transactionCount: data.transactionCount,
-                        profitMargin: data.profitMargin,
-                        totalRevenue: data.totalRevenue,
-                        totalProfit: data.totalProfit,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildSalesInsightsCard(
+                            transactionCount: data.transactionCount,
+                            profitMargin: data.profitMargin,
+                            totalRevenue: data.totalRevenue,
+                            totalProfit: data.totalProfit,
+                          ),
+                          if (_isAdmin) ...[
+                            const SizedBox(height: 16),
+                            _buildCreditTrackingCard(data),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -382,6 +396,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   totalRevenue: data.totalRevenue,
                   totalProfit: data.totalProfit,
                 ),
+                if (_isAdmin) ...[
+                  const SizedBox(height: 16),
+                  _buildCreditTrackingCard(data),
+                ],
               ],
             ],
           ),
@@ -411,7 +429,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildFilterBar(),
+              _buildFilterBar(data.categories),
               if (data.salesStatus.isFailed)
                 SourceErrorBanner(
                   title: 'Sales data loading failed',
@@ -793,7 +811,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildFilterBar(),
+              _buildFilterBar(data.categories),
               if (data.salesStatus.isFailed)
                 SourceErrorBanner(
                   title: 'Sales data loading failed',
@@ -1261,7 +1279,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildFilterBar() {
+  Widget _buildFilterBar(List<String> categories) {
     return Card(
       color: Colors.white.withValues(alpha: 0.03),
       shape: RoundedRectangleBorder(
@@ -1332,9 +1350,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ],
             ),
             // Staff filter (Admin only)
-            if (_isAdmin)
+            if (_isAdmin && _staffStream != null)
               StreamBuilder<List<Staff>>(
-                stream: _firestoreService.getStaffStream(),
+                stream: _staffStream,
                 builder: (context, snapshot) {
                   final staffList = snapshot.data ?? [];
                   return DropdownButtonHideUnderline(
@@ -1377,54 +1395,91 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 },
               ),
             // Category filter
-            StreamBuilder<List<Product>>(
-              stream: _firestoreService.getProductsStream(isAdmin: _isAdmin),
-              builder: (context, snapshot) {
-                final products = snapshot.data ?? [];
-                final categories = products
-                    .map((p) => p.category)
-                    .where((c) => c.isNotEmpty)
-                    .toSet()
-                    .toList();
-
-                return DropdownButtonHideUnderline(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
+            DropdownButtonHideUnderline(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButton<String>(
+                  value: _selectedCategory,
+                  dropdownColor: AppTheme.surfaceColor,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: 'All',
+                      child: Text('All Categories'),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButton<String>(
-                      value: _selectedCategory,
-                      dropdownColor: AppTheme.surfaceColor,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                      ),
-                      items: [
-                        const DropdownMenuItem(
-                          value: 'All',
-                          child: Text('All Categories'),
-                        ),
-                        ...categories.map(
+                    ...categories
+                        .where((c) => c.isNotEmpty)
+                        .toSet()
+                        .map(
                           (cat) => DropdownMenuItem(
                             value: cat,
                             child: Text(cat),
                           ),
                         ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() => _selectedCategory = val);
-                        }
-                      },
-                    ),
-                  ),
-                );
-              },
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _selectedCategory = val);
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreditTrackingCard(ReportsData data) {
+    return Card(
+      color: Colors.white.withValues(alpha: 0.03),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Credit & Khata Tracking',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildInsightRow(
+              'Period Credit Sales',
+              _money(data.creditSales),
+              Colors.orange,
+            ),
+            const Divider(color: Colors.white12, height: 16),
+            _buildInsightRow(
+              'Repayments Collected',
+              _money(data.repayments),
+              Colors.green,
+            ),
+            const Divider(color: Colors.white12, height: 16),
+            _buildInsightRow(
+              'Outstanding Balance',
+              _money(data.outstanding),
+              data.outstanding > 0 ? Colors.redAccent : Colors.green,
             ),
           ],
         ),
@@ -1768,7 +1823,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
         title: const Text('Add Operating Expense', style: TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
@@ -1798,7 +1853,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -1819,8 +1874,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               );
 
               await _firestoreService.addExpense(expense);
+              if (!dialogCtx.mounted) return;
+              Navigator.pop(dialogCtx);
               if (!mounted) return;
-              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Expense added successfully')),
               );
@@ -1839,7 +1895,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
         title: const Text('Edit Operating Expense', style: TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
@@ -1869,7 +1925,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -1890,8 +1946,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               );
 
               await _firestoreService.updateExpense(updated);
+              if (!dialogCtx.mounted) return;
+              Navigator.pop(dialogCtx);
               if (!mounted) return;
-              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Expense updated successfully')),
               );
@@ -1906,7 +1963,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   void _confirmDeleteExpense(Expense expense) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
         title: const Text('Delete Expense', style: TextStyle(color: Colors.white)),
         content: Text(
@@ -1915,7 +1972,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -1925,8 +1982,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             onPressed: () async {
               await _firestoreService.deleteExpense(expense.id);
+              if (!dialogCtx.mounted) return;
+              Navigator.pop(dialogCtx);
               if (!mounted) return;
-              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Expense deleted successfully')),
               );

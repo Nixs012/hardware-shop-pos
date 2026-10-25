@@ -5,6 +5,8 @@ import 'package:app/models/product.dart';
 import 'package:app/models/sale.dart';
 import 'package:app/models/sale_line_item.dart';
 import 'package:app/models/customer_payment.dart';
+import 'package:app/models/staff.dart';
+import 'package:app/screens/reports/reports_screen.dart';
 import 'package:app/utils/credit_balance.dart';
 import 'package:app/services/reports_repository.dart';
 import 'mock_firestore_service.dart';
@@ -489,9 +491,94 @@ void main() {
   });
 
   group('Requirement 2 & 4 - Shared Outstanding Balance & Tab Switching Tests', () {
-    test('computeOutstandingBalance returns correct difference', () {
+    test('computeOutstandingBalance returns correct difference across scenarios', () {
       expect(computeOutstandingBalance(creditSales: 10000.0, repayments: 3500.0), equals(6500.0));
       expect(computeOutstandingBalance(creditSales: 5000.0, repayments: 5000.0), equals(0.0));
+      expect(computeOutstandingBalance(creditSales: 2000.0, repayments: 2500.0), equals(-500.0));
+      expect(computeOutstandingBalance(creditSales: 0.0, repayments: 0.0), equals(0.0));
+      expect(computeOutstandingBalance(creditSales: 123.45, repayments: 23.45), closeTo(100.0, 0.001));
+    });
+
+    test('computeCustomerBalances aggregates credit sales and repayments accurately', () {
+      final sale1 = Sale(
+        id: 's-1',
+        paymentMethod: 'Credit',
+        timestamp: DateTime(2026, 10, 1),
+        staffId: 'staff-1',
+        customerName: 'Alice',
+        customerPhone: '0711111111',
+        lineItems: [
+          SaleLineItem(productId: 'prod-1', quantity: 1, unitPriceAtSale: 1500.0, unitCostAtSale: 1000.0),
+        ],
+      );
+      final sale2 = Sale(
+        id: 's-2',
+        paymentMethod: 'Credit',
+        timestamp: DateTime(2026, 10, 2),
+        staffId: 'staff-1',
+        customerName: 'Alice',
+        customerPhone: '0711111111',
+        lineItems: [
+          SaleLineItem(productId: 'prod-1', quantity: 1, unitPriceAtSale: 2500.0, unitCostAtSale: 1500.0),
+        ],
+      );
+      final sale3 = Sale(
+        id: 's-3',
+        paymentMethod: 'Credit',
+        timestamp: DateTime(2026, 10, 3),
+        staffId: 'staff-1',
+        customerName: 'Bob',
+        customerPhone: '0722222222',
+        lineItems: [
+          SaleLineItem(productId: 'prod-2', quantity: 1, unitPriceAtSale: 3000.0, unitCostAtSale: 2000.0),
+        ],
+      );
+      final saleCash = Sale(
+        id: 's-4',
+        paymentMethod: 'Cash',
+        timestamp: DateTime(2026, 10, 4),
+        staffId: 'staff-1',
+        customerName: 'Alice',
+        lineItems: [
+          SaleLineItem(productId: 'prod-1', quantity: 1, unitPriceAtSale: 5000.0, unitCostAtSale: 3500.0),
+        ],
+      );
+
+      final pay1 = CustomerPayment(
+        id: 'p-1',
+        customerName: 'Alice',
+        customerPhone: '0711111111',
+        amount: 1000.0,
+        timestamp: DateTime(2026, 10, 5),
+        paymentMethod: 'M-Pesa',
+        staffId: 'staff-1',
+      );
+      final pay2 = CustomerPayment(
+        id: 'p-2',
+        customerName: 'Bob',
+        customerPhone: '0722222222',
+        amount: 3000.0,
+        timestamp: DateTime(2026, 10, 6),
+        paymentMethod: 'Cash',
+        staffId: 'staff-1',
+      );
+
+      final balances = computeCustomerBalances([sale1, sale2, sale3, saleCash], [pay1, pay2]);
+
+      expect(balances.containsKey('Alice'), isTrue);
+      expect(balances.containsKey('Bob'), isTrue);
+
+      final alice = balances['Alice']!;
+      expect(alice.totalCreditSales, equals(4000.0));
+      expect(alice.totalRepayments, equals(1000.0));
+      expect(alice.outstanding, equals(3000.0));
+      expect(alice.outstanding, equals(computeOutstandingBalance(creditSales: alice.totalCreditSales, repayments: alice.totalRepayments)));
+      expect(alice.customerPhone, equals('0711111111'));
+
+      final bob = balances['Bob']!;
+      expect(bob.totalCreditSales, equals(3000.0));
+      expect(bob.totalRepayments, equals(3000.0));
+      expect(bob.outstanding, equals(0.0));
     });
 
     test('ReportsRepository caches queries and switching tabs does not re-query streams', () async {
@@ -517,6 +604,96 @@ void main() {
 
       ReportsRepository.resetSessionForTesting();
       mockService.dispose();
+    });
+
+    testWidgets('ReportsScreen switches tabs without re-querying streams (admin)', (WidgetTester tester) async {
+      ReportsRepository.resetSessionForTesting();
+      final mockFs = MockFirestoreService();
+      final admin = Staff(id: '1', name: 'Admin', role: 'admin', email: 'admin@test.com');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ReportsScreen(currentStaff: admin, firestoreService: mockFs),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Initial query counts
+      expect(mockFs.getSalesStreamCalls, equals(1));
+      expect(mockFs.getProductsStreamCalls, equals(1));
+      expect(mockFs.getExpensesStreamCalls, equals(1));
+      expect(mockFs.getCustomerPaymentsStreamCalls, equals(1));
+
+      // Admin sees Credit & Khata Tracking card
+      expect(find.text('Credit & Khata Tracking'), findsOneWidget);
+
+      // Switch to Profit & Loss tab
+      await tester.tap(find.text('Profit & Loss'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Switch to Top Sellers tab
+      await tester.tap(find.text('Top Sellers'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Switch to Stock Balance tab
+      await tester.tap(find.text('Stock Balance'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Switch back to Sales Summary tab
+      await tester.tap(find.text('Sales Summary'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Ensure stream calls did NOT increase upon switching tabs
+      expect(mockFs.getSalesStreamCalls, equals(1));
+      expect(mockFs.getProductsStreamCalls, equals(1));
+      expect(mockFs.getExpensesStreamCalls, equals(1));
+      expect(mockFs.getCustomerPaymentsStreamCalls, equals(1));
+
+      // Credit card is still rendered
+      expect(find.text('Credit & Khata Tracking'), findsOneWidget);
+
+      ReportsRepository.resetSessionForTesting();
+      mockFs.dispose();
+    });
+
+    testWidgets('ReportsScreen for cashier role hides credit tracking and never queries customer payments', (WidgetTester tester) async {
+      ReportsRepository.resetSessionForTesting();
+      final mockFs = MockFirestoreService();
+      final cashier = Staff(id: '2', name: 'Cashier', role: 'cashier', email: 'cashier@test.com');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ReportsScreen(currentStaff: cashier, firestoreService: mockFs),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Cashier should NOT query customer payments or expenses
+      expect(mockFs.getCustomerPaymentsStreamCalls, equals(0));
+      expect(mockFs.getExpensesStreamCalls, equals(0));
+
+      // Cashier must NOT see Credit & Khata Tracking card or profit
+      expect(find.text('Credit & Khata Tracking'), findsNothing);
+      expect(find.text('Gross Profit'), findsNothing);
+
+      // Switch to Stock Balance tab and back
+      await tester.tap(find.text('Stock Balance'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sales Summary'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(mockFs.getCustomerPaymentsStreamCalls, equals(0));
+      expect(mockFs.getExpensesStreamCalls, equals(0));
+      expect(find.text('Credit & Khata Tracking'), findsNothing);
+
+      ReportsRepository.resetSessionForTesting();
+      mockFs.dispose();
     });
   });
 }
