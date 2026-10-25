@@ -37,15 +37,22 @@ service cloud.firestore {
 
     // Shops collection
     match /shops/{shopId} {
-      allow read: if isAuthenticated() && (belongsToShop(shopId) || resource.data.join_code == request.query.limit(1));
+      // list (query) is open so joinAsCashier can find a shop by join_code
+      // before the new cashier's Firebase Auth account exists.
+      // get (direct doc read) requires auth + shop membership.
+      allow list: if true;
+      allow get: if isAuthenticated() && belongsToShop(shopId);
       allow create: if isAuthenticated();
       allow update: if isAdmin() && belongsToShop(shopId);
       allow delete: if false;
 
       // Staff subcollection
       match /staff/{staffId} {
-        allow read: if belongsToShop(shopId) && ((request.auth.uid == staffId) || isAdmin());
-        allow create, update: if isAdmin() && belongsToShop(shopId);
+        allow read: if isAuthenticated() && (request.auth.uid == staffId || belongsToShop(shopId));
+        // Admin can manage any staff; a newly authenticated user can create
+        // their own staff doc during the join/signup flow.
+        allow create: if isAuthenticated() && (request.auth.uid == staffId || (isAdmin() && belongsToShop(shopId)));
+        allow update: if isAdmin() && belongsToShop(shopId);
         allow delete: if false;
       }
 
