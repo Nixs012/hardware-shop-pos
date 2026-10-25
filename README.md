@@ -54,7 +54,13 @@ flutter run -d chrome
 ### Tests
 ```bash
 cd app
-flutter test                     # runs all 72 unit + widget tests
+flutter test                     # runs all 75 unit + widget tests
+```
+
+### Firestore Security Rules Tests (Emulator)
+```bash
+# In project root, run with JDK 21:
+firebase emulators:exec --only firestore "node test_rules/rules.test.js"
 ```
 
 ---

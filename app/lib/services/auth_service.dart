@@ -183,6 +183,9 @@ class AuthService {
         _firestore.collection('shops').doc(shopId).collection('staff').doc(uid),
         staff.toMap(),
       );
+      batch.set(_firestore.collection('joinCodes').doc(joinCode), {
+        'shopId': shopId,
+      });
       await batch.commit();
 
       try {
@@ -204,18 +207,16 @@ class AuthService {
     required String password,
     required String joinCode,
   }) async {
-    final querySnapshot = await _firestore
-        .collection('shops')
-        .where('join_code', isEqualTo: joinCode.trim().toUpperCase())
-        .limit(1)
-        .get();
+    final normalizedCode = joinCode.trim().toUpperCase();
+    final codeDoc =
+        await _firestore.collection('joinCodes').doc(normalizedCode).get();
 
-    if (querySnapshot.docs.isEmpty) {
-      throw Exception('Invalid join code. Please check with your store administrator.');
+    if (!codeDoc.exists || codeDoc.data() == null) {
+      throw Exception(
+          'Invalid join code. Please check with your store administrator.');
     }
 
-    final shopDoc = querySnapshot.docs.first;
-    final shopId = shopDoc.id;
+    final shopId = codeDoc.data()!['shopId'] as String;
 
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
@@ -250,10 +251,16 @@ class AuthService {
 
     try {
       final batch = _firestore.batch();
-      batch.set(_firestore.collection('users').doc(uid), userLookup.toMap());
+      batch.set(_firestore.collection('users').doc(uid), {
+        ...userLookup.toMap(),
+        'join_code': normalizedCode,
+      });
       batch.set(
         _firestore.collection('shops').doc(shopId).collection('staff').doc(uid),
-        staff.toMap(),
+        {
+          ...staff.toMap(),
+          'join_code': normalizedCode,
+        },
       );
       await batch.commit();
 

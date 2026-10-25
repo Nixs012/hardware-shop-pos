@@ -1038,7 +1038,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: const Icon(Icons.refresh, color: Colors.amber),
                         tooltip: 'Regenerate Join Code',
                         onPressed: () async {
-                          await _firestoreService.regenerateJoinCode();
+                          await _firestoreService.regenerateJoinCode(shop.joinCode);
                           if (!mounted) return;
                           setState(() {});
                           ScaffoldMessenger.of(context).showSnackBar(

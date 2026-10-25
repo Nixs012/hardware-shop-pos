@@ -30,28 +30,74 @@ service cloud.firestore {
     // Top-level user lookup document
     match /users/{uid} {
       allow read: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
-      allow create: if isAuthenticated() && request.auth.uid == uid;
-      allow update: if isAuthenticated() && (request.auth.uid == uid || isAdmin());
-      allow delete: if isAdmin();
+      allow create: if isAuthenticated() && (
+        // Shop admin creating a staff user in their own shop
+        (isAdmin() && belongsToShop(request.resource.data.shop_id)) ||
+        // User creating their own account:
+        (request.auth.uid == uid && (
+          // 1. Initial shop owner creating a new shop (shop doc does not yet exist)
+          (request.resource.data.role == 'admin' &&
+           !exists(/databases/$(database)/documents/shops/$(request.resource.data.shop_id))) ||
+          // 2. Cashier joining with valid join code matching the shop
+          (request.resource.data.role == 'cashier' &&
+           request.resource.data.join_code is string &&
+           get(/databases/$(database)/documents/joinCodes/$(request.resource.data.join_code)).data.shopId == request.resource.data.shop_id)
+        ))
+      );
+      allow update: if isAuthenticated() && (
+        // Admin can update users in their shop
+        (isAdmin() && belongsToShop(resource.data.shop_id)) ||
+        // User can update their own profile, but cannot escalate role or change shop_id
+        (request.auth.uid == uid &&
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.shop_id == resource.data.shop_id)
+      );
+      allow delete: if isAdmin() && belongsToShop(resource.data.shop_id);
+    }
+
+    // Top-level joinCodes collection:
+    // Single field: shopId.
+    // Readable by get only, list disabled to prevent enumeration.
+    match /joinCodes/{code} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['shopId']) &&
+        request.resource.data.shopId is string &&
+        (
+          // Admin regenerating code for existing shop
+          (exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)) &&
+           isAdmin() && belongsToShop(request.resource.data.shopId)) ||
+          // Initial shop creation (shop doc does not exist yet before batch commits)
+          (!exists(/databases/$(database)/documents/shops/$(request.resource.data.shopId)))
+        );
+      allow delete: if isAdmin() && belongsToShop(resource.data.shopId);
+      allow update: if false;
     }
 
     // Shops collection
     match /shops/{shopId} {
-      // list (query) is open so joinAsCashier can find a shop by join_code
-      // before the new cashier's Firebase Auth account exists.
-      // get (direct doc read) requires auth + shop membership.
-      allow list: if true;
+      // Restrict reads to members of that shop. No public list or read.
+      allow list: if false;
       allow get: if isAuthenticated() && belongsToShop(shopId);
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.owner_uid == request.auth.uid;
       allow update: if isAdmin() && belongsToShop(shopId);
       allow delete: if false;
 
       // Staff subcollection
       match /staff/{staffId} {
         allow read: if isAuthenticated() && (request.auth.uid == staffId || belongsToShop(shopId));
-        // Admin can manage any staff; a newly authenticated user can create
-        // their own staff doc during the join/signup flow.
-        allow create: if isAuthenticated() && (request.auth.uid == staffId || (isAdmin() && belongsToShop(shopId)));
+        allow create: if isAuthenticated() && (
+          // Admin of this shop can create staff
+          (isAdmin() && belongsToShop(shopId)) ||
+          // Shop owner during initial shop creation (shop does not exist yet before batch commits)
+          (!exists(/databases/$(database)/documents/shops/$(shopId)) && request.auth.uid == staffId) ||
+          // Cashier joining with valid join code matching this shop
+          (request.auth.uid == staffId &&
+           request.resource.data.role == 'cashier' &&
+           request.resource.data.join_code is string &&
+           get(/databases/$(database)/documents/joinCodes/$(request.resource.data.join_code)).data.shopId == shopId)
+        );
         allow update: if isAdmin() && belongsToShop(shopId);
         allow delete: if false;
       }

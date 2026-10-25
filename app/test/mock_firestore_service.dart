@@ -73,7 +73,7 @@ class MockFirestoreService implements FirestoreService {
   }
 
   @override
-  Future<String> regenerateJoinCode() async {
+  Future<String> regenerateJoinCode([String? oldCode]) async {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final code = List.generate(6, (i) => chars[DateTime.now().microsecondsSinceEpoch % chars.length]).join();
     if (_mockShop != null) {

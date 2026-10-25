@@ -92,7 +92,7 @@ abstract class FirestoreService {
 
   Future<Shop?> getShop();
   Future<void> updateShop(Shop shop);
-  Future<String> regenerateJoinCode();
+  Future<String> regenerateJoinCode([String? oldCode]);
 
   Future<void> addProduct(Product product);
   Future<void> updateProduct(Product product);
@@ -151,11 +151,30 @@ class FirestoreServiceImpl implements FirestoreService {
   }
 
   @override
-  Future<String> regenerateJoinCode() async {
+  Future<String> regenerateJoinCode([String? oldCode]) async {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rand = Random();
-    final newCode = List.generate(6, (index) => chars[rand.nextInt(chars.length)]).join();
-    await _shopRef.update({'join_code': newCode});
+    final newCode =
+        List.generate(6, (index) => chars[rand.nextInt(chars.length)]).join();
+
+    String? codeToDelete = oldCode;
+    if (codeToDelete == null || codeToDelete.isEmpty) {
+      final doc = await _shopRef.get();
+      if (doc.exists && doc.data() != null) {
+        codeToDelete = doc.data()!['join_code'] as String?;
+      }
+    }
+
+    final batch = _db.batch();
+    batch.update(_shopRef, {'join_code': newCode});
+    if (codeToDelete != null && codeToDelete.isNotEmpty) {
+      batch.delete(_db.collection('joinCodes').doc(codeToDelete));
+    }
+    batch.set(_db.collection('joinCodes').doc(newCode), {
+      'shopId': shopId,
+    });
+    await batch.commit();
+
     return newCode;
   }
 
