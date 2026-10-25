@@ -174,13 +174,11 @@ class ReportsData {
 ///   UI can show "data that did load" plus a Retry action — never an endless
 ///   spinner.
 class ReportsRepository extends ChangeNotifier {
-  ReportsRepository._({
-    required FirestoreService service,
-    required bool isAdmin,
-    required String? staffId,
-  })  : _service = service,
-        _isAdmin = isAdmin,
-        _staffId = staffId {
+  ReportsRepository._(
+    this._service,
+    this._isAdmin,
+    this._staffId,
+  ) {
     _status[ReportsSource.sales] =
         const ReportsSourceStatus(ReportsSourceState.loading);
     _status[ReportsSource.products] =
@@ -212,11 +210,7 @@ class ReportsRepository extends ChangeNotifier {
       return existing;
     }
     existing?.dispose();
-    final repo = ReportsRepository._(
-      service: service,
-      isAdmin: isAdmin,
-      staffId: staffId,
-    );
+    final repo = ReportsRepository._(service, isAdmin, staffId);
     _session = repo;
     return repo;
   }
