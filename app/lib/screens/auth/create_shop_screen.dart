@@ -266,7 +266,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<PaperSize>(
-                      value: _paperSize,
+                      initialValue: _paperSize,
                       dropdownColor: AppTheme.surfaceColor,
                       decoration: _inputDecoration('Printer Paper Size', Icons.print),
                       items: const [

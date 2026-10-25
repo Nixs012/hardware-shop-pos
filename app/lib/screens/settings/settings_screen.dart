@@ -996,7 +996,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 16),
             FutureBuilder<Shop?>(
               future: _firestoreService.getShop(),
-              builder: (context, shopSnap) {
+              builder: (ctx, shopSnap) {
                 final shop = shopSnap.data;
                 if (shop == null) return const SizedBox.shrink();
                 return Container(
@@ -1039,12 +1039,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         tooltip: 'Regenerate Join Code',
                         onPressed: () async {
                           await _firestoreService.regenerateJoinCode();
+                          if (!mounted) return;
                           setState(() {});
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Join code regenerated.')),
-                            );
-                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Join code regenerated.')),
+                          );
                         },
                       ),
                     ],

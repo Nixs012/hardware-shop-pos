@@ -398,7 +398,7 @@ class SyncService {
 
   Future<void> init([String shopId = 'default_shop']) async {
     if (_storage is HiveSyncStorage) {
-      (_storage as HiveSyncStorage).setShopId(shopId);
+      _storage.setShopId(shopId);
     }
     await _storage.init();
     _pendingCount = await _storage.getPendingCount();
@@ -428,7 +428,7 @@ class SyncService {
 
   Future<void> switchShop(String shopId) async {
     if (_storage is HiveSyncStorage) {
-      (_storage as HiveSyncStorage).setShopId(shopId);
+      _storage.setShopId(shopId);
       await _storage.init();
     }
     _pendingCount = await _storage.getPendingCount();
@@ -437,7 +437,7 @@ class SyncService {
 
   Future<void> clearLocalCaches() async {
     if (_storage is HiveSyncStorage) {
-      await (_storage as HiveSyncStorage).clearLocalCaches();
+      await _storage.clearLocalCaches();
     }
     _pendingCount = 0;
     _notifyStatus();
@@ -550,7 +550,7 @@ class SyncService {
       if (!_isOnline) break;
       try {
         if (_customSyncSale != null) {
-          await _customSyncSale!(queued, shopId);
+          await _customSyncSale(queued, shopId);
         } else {
           final db = FirebaseFirestore.instance;
           final saleId = queued.sale.id;
@@ -614,7 +614,7 @@ class SyncService {
       if (!_isOnline) break;
       try {
         if (_customSyncPayment != null) {
-          await _customSyncPayment!(queued, shopId);
+          await _customSyncPayment(queued, shopId);
         } else {
           await db
               .collection('shops')

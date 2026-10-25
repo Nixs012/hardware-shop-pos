@@ -1,19 +1,25 @@
 {
   "indexes": [
     {
-      "name": "sales-staff-timestamp-desc",
-      "collectionId": "sales",
+      "collectionGroup": "sales",
       "queryScope": "COLLECTION",
-      "indexScope": "DEFAULT",
       "fields": [
-        {
-          "fieldPath": "staff_id",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "staff_id", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "customer_payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     }
   ],

@@ -138,7 +138,7 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<Shop?> getShop() async {
-    final doc = await _db.collection('shops').doc(shopId).get();
+    final doc = await _shopRef.get();
     if (doc.exists && doc.data() != null) {
       return Shop.fromMap(doc.data()!, doc.id);
     }
@@ -147,7 +147,7 @@ class FirestoreServiceImpl implements FirestoreService {
 
   @override
   Future<void> updateShop(Shop shop) async {
-    await _db.collection('shops').doc(shopId).update(shop.toMap());
+    await _shopRef.update(shop.toMap());
   }
 
   @override
@@ -155,7 +155,7 @@ class FirestoreServiceImpl implements FirestoreService {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rand = Random();
     final newCode = List.generate(6, (index) => chars[rand.nextInt(chars.length)]).join();
-    await _db.collection('shops').doc(shopId).update({'join_code': newCode});
+    await _shopRef.update({'join_code': newCode});
     return newCode;
   }
 
