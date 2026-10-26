@@ -31,9 +31,9 @@ class SummaryCard extends StatelessWidget {
     final color = iconColor ?? AppTheme.highlightColor;
 
     final cardChild = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Icon chip
           Container(
@@ -51,6 +51,7 @@ class SummaryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   title,
@@ -63,7 +64,7 @@ class SummaryCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   value,
                   style: const TextStyle(
@@ -82,20 +83,28 @@ class SummaryCard extends StatelessWidget {
       ),
     );
 
-    return Card(
-      color: AppTheme.cardBackground,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        side: BorderSide(color: AppTheme.borderColor, width: 1),
+    // Disable text scaling within the KPI card so that very large system fonts
+    // do not overflow the fixed-height grid cells. The card dimensions are
+    // deliberately compact and the labels are designed to fit at scale 1.0.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(1.0),
       ),
-      child: onTap != null
-          ? InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              child: cardChild,
-            )
-          : cardChild,
+      child: Card(
+        color: AppTheme.cardBackground,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+          side: BorderSide(color: AppTheme.borderColor, width: 1),
+        ),
+        child: onTap != null
+            ? InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                child: cardChild,
+              )
+            : cardChild,
+      ),
     );
   }
 }

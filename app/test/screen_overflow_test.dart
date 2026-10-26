@@ -266,6 +266,41 @@ void main() {
       expect(find.text('Exception'), findsNothing);
       mockFs.dispose();
     });
+
+    testWidgets('ReportsScreen renders without overflow at 360x640dp with large font', (WidgetTester tester) async {
+      final mockFs = MockFirestoreService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: testScreenSize,
+              textScaler: TextScaler.linear(2.0),
+            ),
+            child: Scaffold(
+              body: ReportsScreen(
+                currentStaff: adminStaff,
+                firestoreService: mockFs,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(ReportsScreen), findsOneWidget);
+      expect(find.text('Exception'), findsNothing);
+      expect(find.text('Bad state'), findsNothing);
+
+      // Switch to Top Sellers tab with large font
+      await tester.tap(find.text('Top Sellers'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(ReportsScreen), findsOneWidget);
+      expect(find.text('Exception'), findsNothing);
+      mockFs.dispose();
+    });
   });
 }
 

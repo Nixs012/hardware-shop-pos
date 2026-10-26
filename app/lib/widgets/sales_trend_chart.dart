@@ -11,7 +11,7 @@ import '../utils/theme.dart';
 /// * Period granularity is chosen by the parent: hourly for Daily,
 ///   daily for Weekly/Monthly, and per-range for Custom.
 /// * Blue line with dot markers, subtle gridlines, KSh-formatted axes.
-/// * Tappable/hoverable dots show a KSh tooltip.
+/// * Tappable/hoverable bars/dots show a KSh tooltip with the bucket label.
 /// * Friendly empty state when there are no sales.
 class SalesTrendChart extends StatefulWidget {
   /// (x-axis label, revenue for that bucket)
@@ -122,6 +122,11 @@ class _SalesTrendPainter extends CustomPainter {
       ..color = AppTheme.primaryColor.withValues(alpha: 0.08)
       ..style = PaintingStyle.fill;
 
+    final paintBar = Paint()
+      ..color = AppTheme.primaryColor.withValues(alpha: 0.6)
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
     final textStyleAxis = TextStyle(
       color: AppTheme.textSecondary,
       fontSize: 11,
@@ -136,7 +141,8 @@ class _SalesTrendPainter extends CustomPainter {
     final maxCount = points.map((p) => p.value).fold<double>(0, (a, b) => a > b ? a : b);
     final maxVal = maxCount > 0 ? maxCount : 1.0;
 
-    final plotLeft = 48.0;
+    // Leave enough room on the left for y-axis labels (12px padding)
+    final plotLeft = 52.0;
     final plotRight = 16.0;
     final plotTop = 20.0;
     final plotBottom = 32.0;
@@ -150,7 +156,7 @@ class _SalesTrendPainter extends CustomPainter {
       canvas.drawLine(Offset(plotLeft, y), Offset(size.width - plotRight, y), paintGrid);
     }
 
-    // Draw y-axis labels
+    // Draw y-axis labels — right-aligned with 8px padding so first/last not clipped
     for (int i = 0; i <= 3; i++) {
       final val = maxVal - (maxVal / 3) * i;
       final y = plotTop + (plotHeight / 3) * i;
@@ -165,14 +171,13 @@ class _SalesTrendPainter extends CustomPainter {
 
     if (points.length < 2) {
       // Single point — just draw a dot
-      final x = plotLeft;
+      final x = plotLeft + plotWidth / 2;
       final y = plotTop + plotHeight - (points.first.value / maxVal) * plotHeight;
       canvas.drawCircle(Offset(x, y), 4, paintLine);
       return;
     }
 
-    // Compute path
-    final path = Path();
+    // Compute x positions for each point
     final pointsOnPath = points.asMap().entries.map((entry) {
       final i = entry.key;
       final value = entry.value.value;
@@ -181,30 +186,59 @@ class _SalesTrendPainter extends CustomPainter {
       return Offset(x, y);
     }).toList();
 
-    path.moveTo(pointsOnPath.first.dx, pointsOnPath.first.dy);
-    for (final p in pointsOnPath.skip(1)) {
-      path.lineTo(p.dx, p.dy);
+    final useBars = points.length <= 7;
+
+    if (useBars) {
+      // Bar chart
+      final barWidth = plotWidth / points.length * 0.6;
+      final barGap = plotWidth / points.length * 0.2;
+
+      for (int i = 0; i < points.length; i++) {
+        final barX = plotLeft + barGap / 2 + (plotWidth / points.length) * i;
+        final barTop = pointsOnPath[i].dy;
+        final barRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(barX, barTop, barWidth, plotTop + plotHeight - barTop),
+          const Radius.circular(2),
+        );
+
+        // Highlight bar on hover
+        if (hoveredIndex == i) {
+          paintBar.color = AppTheme.primaryColor;
+        } else {
+          paintBar.color = AppTheme.primaryColor.withValues(alpha: 0.6);
+        }
+
+        canvas.drawRRect(barRect, paintBar);
+      }
+    } else {
+      // Line chart with area fill
+      final path = Path();
+      path.moveTo(pointsOnPath.first.dx, pointsOnPath.first.dy);
+      for (final p in pointsOnPath.skip(1)) {
+        path.lineTo(p.dx, p.dy);
+      }
+
+      // Area fill (gradient-like)
+      final fillPath = Path.from(path)
+        ..lineTo(pointsOnPath.last.dx, plotTop + plotHeight)
+        ..lineTo(pointsOnPath.first.dx, plotTop + plotHeight)
+        ..close();
+      canvas.drawPath(fillPath, paintFill);
+
+      // Line
+      canvas.drawPath(path, paintLine);
     }
-
-    // Area fill (gradient-like)
-    final fillPath = Path.from(path)
-      ..lineTo(pointsOnPath.last.dx, plotTop + plotHeight)
-      ..lineTo(pointsOnPath.first.dx, plotTop + plotHeight)
-      ..close();
-    canvas.drawPath(fillPath, paintFill);
-
-    // Line
-    canvas.drawPath(path, paintLine);
 
     // Dots + x-axis labels + hover tooltip
     for (int i = 0; i < points.length; i++) {
       final p = pointsOnPath[i];
       final isHovered = hoveredIndex == i;
-      final dotRadius = isHovered ? 5.0 : 3.5;
 
+      // Draw dot marker for line mode, or top of bar for bar mode
+      final dotRadius = isHovered ? 5.0 : 3.5;
       canvas.drawCircle(p, dotRadius, paintLine);
 
-      // x-axis label
+      // x-axis label — positioned below the plot area, centered on the point
       final label = points[i].key;
       final tp = TextPainter(
         text: TextSpan(text: label, style: textStyleLabel),
@@ -212,11 +246,14 @@ class _SalesTrendPainter extends CustomPainter {
         textAlign: TextAlign.center,
       );
       tp.layout();
-      tp.paint(canvas, Offset(p.dx - tp.width / 2, size.height - plotBottom + 4));
 
-      // Hover tooltip
+      // Ensure x-label doesn't overlap with markers
+      final labelY = plotTop + plotHeight + 4;
+      tp.paint(canvas, Offset(p.dx - tp.width / 2, labelY));
+
+      // Hover tooltip — shows bucket label and KSh amount
       if (isHovered) {
-        final tooltipText = CurrencyFormatter.format(points[i].value);
+        final tooltipText = '${points[i].key}\n${CurrencyFormatter.format(points[i].value)}';
         final ttp = TextPainter(
           text: TextSpan(
             text: tooltipText,
@@ -227,11 +264,15 @@ class _SalesTrendPainter extends CustomPainter {
             ),
           ),
           textDirection: TextDirection.ltr,
+          textAlign: TextAlign.center,
         );
         ttp.layout();
         final tx = p.dx - ttp.width / 2;
-        // Position tooltip above the point, but clamp to chart bounds
-        final ty = (p.dy - ttp.height - 16).clamp(plotTop + 4, plotTop + plotHeight - ttp.height - 4);
+        // Position tooltip above the point, clamped to chart bounds
+        final ty = (p.dy - ttp.height - 16).clamp(
+          plotTop + 4.0,
+          plotTop + plotHeight - ttp.height - 4.0,
+        );
         final bgRect = Rect.fromLTWH(
           tx - 6,
           ty - 4,

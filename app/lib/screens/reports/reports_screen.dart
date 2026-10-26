@@ -497,16 +497,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
       String label;
       if (periodIndex == 0) {
         // Daily → hourly buckets
-        label = '${sale.timestamp.hour}:00';
+        final hour = sale.timestamp.hour;
+        if (hour < 12) {
+          label = '${hour}am';
+        } else if (hour == 12) {
+          label = '12pm';
+        } else {
+          label = '${hour - 12}pm';
+        }
       } else if (periodIndex == 1) {
         // Weekly → daily buckets
-        label = '${sale.timestamp.day}/${sale.timestamp.month}';
+        label = '${sale.timestamp.month}/${sale.timestamp.day}';
       } else if (periodIndex == 2) {
         // Monthly → daily buckets
-        label = '${sale.timestamp.day}';
+        label = '${sale.timestamp.month}/${sale.timestamp.day}';
       } else {
         // Custom → daily buckets
-        label = '${sale.timestamp.day}/${sale.timestamp.month}';
+        label = '${sale.timestamp.month}/${sale.timestamp.day}';
       }
       buckets[label] = (buckets[label] ?? 0) + sale.totalAmount;
     }
@@ -771,38 +778,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              // Sort control — equal-width segments, scrollable at narrow widths
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                child: SegmentedButton<String>(
-                  style: ButtonStyle(
-                    backgroundColor:
-                        WidgetStateProperty.resolveWith<Color?>((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return AppTheme.primaryColor;
-                      }
-                      return AppTheme.cardBackground;
-                    }),
-                    foregroundColor:
-                        WidgetStateProperty.all(AppTheme.textPrimary),
+                child: SizedBox(
+                  width: 360,
+                  child: SegmentedButton<String>(
+                    style: ButtonStyle(
+                      backgroundColor:
+                          WidgetStateProperty.resolveWith<Color?>((states) {
+                        if (states.contains(WidgetState.selected)) {
+                          return AppTheme.primaryColor;
+                        }
+                        return AppTheme.cardBackground;
+                      }),
+                      foregroundColor:
+                          WidgetStateProperty.all(AppTheme.textPrimary),
+                    ),
+                    segments: const [
+                      ButtonSegment<String>(
+                        value: 'revenue',
+                        label: Text('By Revenue'),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'quantity',
+                        label: Text('By Volume'),
+                      ),
+                      ButtonSegment<String>(
+                        value: 'profit',
+                        label: Text('By Profit'),
+                      ),
+                    ],
+                    selected: {_sellersSortBy},
+                    onSelectionChanged: (set) {
+                      setState(() => _sellersSortBy = set.first);
+                    },
                   ),
-                  segments: const [
-                    ButtonSegment<String>(
-                      value: 'revenue',
-                      label: Text('By Revenue'),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'quantity',
-                      label: Text('By Volume'),
-                    ),
-                    ButtonSegment<String>(
-                      value: 'profit',
-                      label: Text('By Profit'),
-                    ),
-                  ],
-                  selected: {_sellersSortBy},
-                  onSelectionChanged: (set) {
-                    setState(() => _sellersSortBy = set.first);
-                  },
                 ),
               ),
               const SizedBox(height: 16),
@@ -873,29 +884,31 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         trailing: SizedBox(
-                          width: 90,
+                          width: 96,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 CurrencyFormatter.format(p.totalRevenue),
                                 style: const TextStyle(
                                   color: AppTheme.textPrimary,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 13,
+                                  fontSize: 11,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (_isAdmin)
                                 Text(
-                                  'P: ${CurrencyFormatter.format(p.totalProfit)}',
+                                  'Profit: ${CurrencyFormatter.format(p.totalProfit)}',
                                   style: TextStyle(
                                     color: margin >= 15
                                         ? AppTheme.successColor
                                         : AppTheme.warningColor,
-                                    fontSize: 10,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
