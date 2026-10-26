@@ -194,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Sales exported to your Downloads folder.'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppTheme.successColor,
           ),
         );
       }
@@ -203,7 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Export failed: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.errorColor,
         ),
       );
     }
@@ -219,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'Imported ${result.imported} product(s).'
           '${result.hasErrors ? ' ${result.errors.length} error(s).' : ''}',
         ),
-        backgroundColor: result.hasErrors ? Colors.orange : Colors.green,
+        backgroundColor: result.hasErrors ? AppTheme.warningColor : AppTheme.successColor,
       );
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
@@ -231,7 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Import failed: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.errorColor,
         ),
       );
     }
@@ -295,7 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildImportExportSection() {
     return Card(
-      color: Colors.white.withValues(alpha: 0.05),
+      color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
@@ -307,8 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             const Text(
               'Import / Export',
-              style: TextStyle(
-                color: Colors.white,
+              style: TextStyle(color: AppTheme.textPrimary, 
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -346,7 +345,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildBackupSection() {
     return Card(
-      color: Colors.white.withValues(alpha: 0.05),
+      color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
@@ -358,8 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             const Text(
               'Data Backup',
-              style: TextStyle(
-                color: Colors.white,
+              style: TextStyle(color: AppTheme.textPrimary, 
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -403,7 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Sale sync retry completed.'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppTheme.successColor,
         ),
       );
     } catch (error) {
@@ -412,7 +410,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Retry failed and remains in Needs Review: $error'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.errorColor,
         ),
       );
     }
@@ -436,8 +434,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 'Needs Review',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: AppTheme.textPrimary, 
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -463,7 +460,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 16.0),
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                backgroundColor: AppTheme.errorColor,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               onPressed: () async {
@@ -475,11 +472,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   (route) => false,
                 );
               },
-              icon: const Icon(Icons.logout, color: Colors.white),
+              icon: const Icon(Icons.logout, color: AppTheme.textPrimary),
               label: const Text(
                 'Log Out',
-                style: TextStyle(
-                  color: Colors.white,
+                style: TextStyle(color: AppTheme.textPrimary, 
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -521,7 +517,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _buildBackupSection(),
                               const SizedBox(height: 24),
                               failedSalesWidget,
-                              const Divider(height: 36, color: Colors.white24),
+                              const Divider(height: 36, color: AppTheme.borderColor),
                             ] else
                               const SizedBox(height: 24),
                             logoutButton,
@@ -551,7 +547,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _buildBackupSection(),
                     const SizedBox(height: 24),
                     failedSalesWidget,
-                    const Divider(height: 48, color: Colors.white24),
+                    const Divider(height: 48, color: AppTheme.borderColor),
                   ] else
                     const SizedBox(height: 24),
                   logoutButton,
@@ -566,7 +562,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAccountSection() {
     return Card(
-      color: Colors.white.withValues(alpha: 0.05),
+      color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
@@ -586,9 +582,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -604,7 +600,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             Text(
               widget.currentStaff.email,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -616,7 +612,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     backgroundColor: AppTheme.secondaryColor.withValues(
                       alpha: 0.15,
                     ),
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary,
                     side: BorderSide(
                       color: AppTheme.secondaryColor.withValues(alpha: 0.3),
                     ),
@@ -627,8 +623,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.withValues(alpha: 0.2),
-                    foregroundColor: Colors.redAccent,
+                    backgroundColor: AppTheme.errorColor.withValues(alpha: 0.2),
+                    foregroundColor: AppTheme.errorColor,
                   ),
                   onPressed: _showDeleteAccountDialog,
                   icon: const Icon(Icons.delete_forever, size: 18),
@@ -644,7 +640,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildShopDetailsSection() {
     return Card(
-      color: Colors.white.withValues(alpha: 0.05),
+      color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: AppTheme.secondaryColor.withValues(alpha: 0.2)),
@@ -662,9 +658,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Text(
                     'Shop Details & M-Pesa',
                     style: TextStyle(
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -679,12 +675,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             DropdownButtonFormField<String?>(
               initialValue: _mpesaType,
               dropdownColor: AppTheme.surfaceColor,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.textPrimary),
               decoration: InputDecoration(
                 labelText: 'M-Pesa type (Optional)',
                 labelStyle: const TextStyle(color: AppTheme.secondaryColor),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: AppTheme.cardBackground,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -692,15 +688,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               items: const [
                 DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('None (Disabled)', style: TextStyle(color: Colors.white70)),
+                  child: Text('None (Disabled)', style: TextStyle(color: AppTheme.textSecondary)),
                 ),
                 DropdownMenuItem<String?>(
                   value: 'Paybill',
-                  child: Text('Paybill', style: TextStyle(color: Colors.white)),
+                  child: Text('Paybill', style: TextStyle(color: AppTheme.textPrimary)),
                 ),
                 DropdownMenuItem<String?>(
                   value: 'Till',
-                  child: Text('Till (Buy Goods)', style: TextStyle(color: Colors.white)),
+                  child: Text('Till (Buy Goods)', style: TextStyle(color: AppTheme.textPrimary)),
                 ),
               ],
               onChanged: (val) {
@@ -711,15 +707,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: _mpesaNumberController,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.textPrimary),
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: _mpesaType == 'Paybill' ? 'Paybill Business Number' : 'Till Number',
                   hintText: _mpesaType == 'Paybill' ? 'e.g. 522522' : 'e.g. 123456',
                   labelStyle: const TextStyle(color: AppTheme.secondaryColor),
-                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  hintStyle: TextStyle(color: AppTheme.textPrimary.withValues(alpha: 0.3)),
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.05),
+                  fillColor: AppTheme.cardBackground,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -729,14 +725,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _mpesaAccountController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Account number',
                     hintText: 'e.g. 12345678 or Shop Name',
                     labelStyle: const TextStyle(color: AppTheme.secondaryColor),
-                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                    hintStyle: TextStyle(color: AppTheme.textPrimary.withValues(alpha: 0.3)),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    fillColor: AppTheme.cardBackground,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -751,7 +747,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppTheme.textPrimary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -761,7 +757,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textPrimary),
                       )
                     : const Icon(Icons.save_outlined, size: 20),
                 label: const Text(
@@ -811,7 +807,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Shop details updated successfully!'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppTheme.successColor,
           ),
         );
       }
@@ -820,7 +816,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to update shop details: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorColor,
           ),
         );
       }
@@ -845,7 +841,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
               backgroundColor: AppTheme.backgroundColor,
-              title: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+              title: const Text('Delete Account', style: TextStyle(color: AppTheme.textPrimary)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -856,13 +852,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   if (errorMessage != null) ...[
-                    Text(errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    Text(errorMessage!, style: const TextStyle(color: AppTheme.errorColor, fontSize: 12)),
                     const SizedBox(height: 12),
                   ],
                   TextField(
                     controller: passwordController,
                     obscureText: obscurePassword,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
                       labelText: 'Current Password',
                       suffixIcon: IconButton(
@@ -880,7 +876,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Cancel'),
                   ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
                   onPressed: isLoading
                       ? null
                       : () async {
@@ -949,8 +945,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'Change Password',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(color: AppTheme.textPrimary, 
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -967,17 +962,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         padding: const EdgeInsets.all(10),
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.15),
+                          color: AppTheme.errorColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Colors.red.withValues(alpha: 0.4),
+                            color: AppTheme.errorColor.withValues(alpha: 0.4),
                           ),
                         ),
                         child: Row(
                           children: [
                             const Icon(
                               Icons.error_outline,
-                              color: Colors.redAccent,
+                              color: AppTheme.errorColor,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
@@ -985,7 +980,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: Text(
                                 errorMessage!,
                                 style: const TextStyle(
-                                  color: Colors.redAccent,
+                                  color: AppTheme.errorColor,
                                   fontSize: 12,
                                 ),
                               ),
@@ -997,7 +992,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     TextField(
                       controller: currentPasswordController,
                       obscureText: obscureCurrent,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Current Password',
                         suffixIcon: IconButton(
@@ -1017,7 +1012,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     TextField(
                       controller: newPasswordController,
                       obscureText: obscureNew,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'New Password',
                         helperText: 'Minimum 6 characters',
@@ -1040,7 +1035,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     TextField(
                       controller: confirmPasswordController,
                       obscureText: obscureConfirm,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'Confirm New Password',
                         suffixIcon: IconButton(
@@ -1071,7 +1066,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary
                   ),
                   onPressed: isLoading
                       ? null
@@ -1132,7 +1127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   content: Text(
                                     'Password changed successfully.',
                                   ),
-                                  backgroundColor: Colors.green,
+                                  backgroundColor: AppTheme.successColor,
                                 ),
                               );
                             }
@@ -1170,7 +1165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+                              AppTheme.textPrimary
                             ),
                           ),
                         )
@@ -1235,13 +1230,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const SizedBox(height: 2),
                             Text(
                               shop.joinCode,
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2),
+                              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 2),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.copy, color: Colors.white),
+                        icon: const Icon(Icons.copy, color: AppTheme.textPrimary),
                         tooltip: 'Copy Join Code',
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: shop.joinCode));
@@ -1251,7 +1246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.refresh, color: Colors.amber),
+                        icon: const Icon(Icons.refresh, color: AppTheme.warningColor),
                         tooltip: 'Regenerate Join Code',
                         onPressed: () async {
                           await _firestoreService.regenerateJoinCode(shop.joinCode);
@@ -1301,7 +1296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: staffList.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(color: Colors.white24),
+                      const Divider(color: AppTheme.borderColor),
                   itemBuilder: (context, index) {
                     final staff = staffList[index];
                     final isSelf = staff.id == widget.currentStaff.id;
@@ -1320,24 +1315,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const Chip(
                               label: Text(
                                 'Deactivated',
-                                style: TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(color: AppTheme.textPrimary, 
                                   fontSize: 10,
                                 ),
                               ),
-                              backgroundColor: Colors.red,
+                              backgroundColor: AppTheme.errorColor,
                               padding: EdgeInsets.zero,
                             ),
                           IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            icon: const Icon(Icons.edit, color: AppTheme.highlightColor),
                             onPressed: () => _showEditStaffDialog(staff),
                           ),
                           IconButton(
                             icon: Icon(
                               staff.active ? Icons.block : Icons.check_circle,
                               color: isSelf
-                                  ? Colors.grey
-                                  : (staff.active ? Colors.red : Colors.green),
+                                  ? AppTheme.textSecondary
+                                  : (staff.active ? AppTheme.errorColor : AppTheme.successColor),
                             ),
                             onPressed: isSelf
                                 ? null
@@ -1374,7 +1368,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: newStatus ? Colors.green : Colors.red,
+              backgroundColor: newStatus ? AppTheme.successColor : AppTheme.errorColor,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text(newStatus ? 'Reactivate' : 'Deactivate'),
@@ -1650,7 +1644,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildPrinterSection() {
     if (kIsWeb) {
       return Card(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppTheme.cardBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
@@ -1675,9 +1669,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Text(
                       'Receipt Printing',
                       style: TextStyle(
+                        color: AppTheme.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
                       ),
                     ),
                     SizedBox(height: 6),
@@ -1769,13 +1763,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.warning_amber, color: Colors.orange),
+                const Icon(Icons.warning_amber, color: AppTheme.warningColor),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'KSh ${record.sale.totalAmount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: const TextStyle(color: AppTheme.textPrimary, 
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
@@ -1790,17 +1783,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             Text(
               'Sale: ${record.sale.id}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 4),
             Text(
               'Failed: ${record.failedAt.toLocal()}',
-              style: const TextStyle(color: Colors.white70),
+              style: const TextStyle(color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 8),
             Text(
               'Error: ${record.errorMessage}',
-              style: const TextStyle(color: Colors.redAccent),
+              style: const TextStyle(color: AppTheme.errorColor),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1815,3 +1808,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
+
+

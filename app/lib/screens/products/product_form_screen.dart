@@ -173,10 +173,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   onPressed: _isLoading ? null : _saveProduct,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary,
                   ),
                   child: _isLoading 
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppTheme.textPrimary, strokeWidth: 2))
                       : const Text('Save Product', style: TextStyle(fontSize: 16)),
                 ),
               ),
@@ -195,21 +195,23 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }) {
     return TextFormField(
       controller: controller,
-      keyboardType: isNumeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+      keyboardType:
+          isNumeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: AppTheme.secondaryColor),
+        labelStyle: const TextStyle(color: AppTheme.textSecondary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          borderSide: BorderSide(color: AppTheme.borderColor),
         ),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: AppTheme.cardBackground,
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppTheme.secondaryColor),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+          borderSide: const BorderSide(color: AppTheme.highlightColor, width: 2),
         ),
       ),
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppTheme.textPrimary),
       validator: (value) {
         if (required && (value == null || value.trim().isEmpty)) {
           return 'This field is required';
@@ -224,3 +226,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     );
   }
 }
+
+
+

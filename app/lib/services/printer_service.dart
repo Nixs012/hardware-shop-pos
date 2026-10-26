@@ -496,3 +496,6 @@ class PrinterService {
     debugPrint('[Printer][DEBUG] ESC/POS bytes (${bytes.length}): $hex');
   }
 }
+
+
+

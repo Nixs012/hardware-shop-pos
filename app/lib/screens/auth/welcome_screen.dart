@@ -44,7 +44,7 @@ class WelcomeScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppTheme.textPrimary
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -65,7 +65,7 @@ class WelcomeScreen extends StatelessWidget {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppTheme.textPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -84,7 +84,7 @@ class WelcomeScreen extends StatelessWidget {
                         );
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppTheme.textPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         side: const BorderSide(color: AppTheme.primaryColor),
                         shape: RoundedRectangleBorder(
@@ -121,3 +121,6 @@ class WelcomeScreen extends StatelessWidget {
     );
   }
 }
+
+
+

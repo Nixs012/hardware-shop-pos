@@ -91,8 +91,8 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const BackButton(color: Colors.white),
-        title: const Text('Join as Cashier', style: TextStyle(color: Colors.white, fontSize: 16)),
+        leading: const BackButton(color: AppTheme.textPrimary),
+        title: const Text('Join as Cashier', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -117,7 +117,7 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
                       'Cashier Registration',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -131,18 +131,18 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
+                          color: AppTheme.errorColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                          border: Border.all(color: AppTheme.errorColor.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            const Icon(Icons.error_outline, color: AppTheme.errorColor, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _errorMessage!,
-                                style: const TextStyle(color: Colors.red, fontSize: 13),
+                                style: const TextStyle(color: AppTheme.errorColor, fontSize: 13),
                               ),
                             ),
                           ],
@@ -153,27 +153,27 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
 
                     TextField(
                       controller: _joinCodeController,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
+                      style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, letterSpacing: 2),
                       decoration: _inputDecoration('Store Join Code (e.g. AB12CD)', Icons.vpn_key_outlined),
                       textCapitalization: TextCapitalization.characters,
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _nameController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Full Name', Icons.person_outline),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _emailController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Email Address', Icons.email_outlined),
                       keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _passwordController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Password (min 6 chars)', Icons.lock_outline,
                         suffix: IconButton(
                           icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: AppTheme.secondaryColor),
@@ -190,7 +190,7 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
                         onPressed: _isLoading ? null : _handleJoin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppTheme.textPrimary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
@@ -198,7 +198,7 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(AppTheme.textPrimary)),
                               )
                             : const Text('Join Store', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
@@ -220,7 +220,7 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
       prefixIcon: Icon(icon, color: AppTheme.secondaryColor),
       suffixIcon: suffix,
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
+      fillColor: AppTheme.cardBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -228,3 +228,6 @@ class _JoinCashierScreenState extends State<JoinCashierScreen> {
     );
   }
 }
+
+
+

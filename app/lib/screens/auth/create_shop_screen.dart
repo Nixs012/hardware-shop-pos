@@ -92,7 +92,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Shop created successfully! Verification email sent.'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppTheme.successColor,
           duration: Duration(seconds: 5),
         ),
       );
@@ -132,8 +132,8 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const BackButton(color: Colors.white),
-        title: const Text('Create Shop & Admin Account', style: TextStyle(color: Colors.white, fontSize: 16)),
+        leading: const BackButton(color: AppTheme.textPrimary),
+        title: const Text('Create Shop & Admin Account', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -158,7 +158,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                       'Admin & Shop Setup',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -172,18 +172,18 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
+                          color: AppTheme.errorColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                          border: Border.all(color: AppTheme.errorColor.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            const Icon(Icons.error_outline, color: AppTheme.errorColor, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 _errorMessage!,
-                                style: const TextStyle(color: Colors.red, fontSize: 13),
+                                style: const TextStyle(color: AppTheme.errorColor, fontSize: 13),
                               ),
                             ),
                           ],
@@ -199,20 +199,20 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _nameController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Full Name', Icons.person_outline),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _emailController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Email Address', Icons.email_outlined),
                       keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _passwordController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Password (min 6 chars)', Icons.lock_outline,
                         suffix: IconButton(
                           icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: AppTheme.secondaryColor),
@@ -224,7 +224,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _confirmPasswordController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Confirm Password', Icons.lock_outline,
                         suffix: IconButton(
                           icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, color: AppTheme.secondaryColor),
@@ -242,26 +242,26 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _shopNameController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Shop Name', Icons.store),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _addressController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Shop Address', Icons.location_on_outlined),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _phoneController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Phone Number', Icons.phone_outlined),
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _footerController,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppTheme.textPrimary),
                       decoration: _inputDecoration('Receipt Footer', Icons.receipt_long),
                     ),
                     const SizedBox(height: 12),
@@ -270,8 +270,8 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                       dropdownColor: AppTheme.surfaceColor,
                       decoration: _inputDecoration('Printer Paper Size', Icons.print),
                       items: const [
-                        DropdownMenuItem(value: PaperSize.mm58, child: Text('58mm / 2 inch', style: TextStyle(color: Colors.white))),
-                        DropdownMenuItem(value: PaperSize.mm80, child: Text('80mm / 3 inch', style: TextStyle(color: Colors.white))),
+                        DropdownMenuItem(value: PaperSize.mm58, child: Text('58mm / 2 inch', style: TextStyle(color: AppTheme.textPrimary))),
+                        DropdownMenuItem(value: PaperSize.mm80, child: Text('80mm / 3 inch', style: TextStyle(color: AppTheme.textPrimary))),
                       ],
                       onChanged: (v) {
                         if (v != null) setState(() => _paperSize = v);
@@ -289,7 +289,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                         const Expanded(
                           child: Text(
                             'I agree to the Terms of Service and Privacy Policy',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                           ),
                         ),
                       ],
@@ -302,7 +302,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                         onPressed: _isLoading ? null : _handleCreateShop,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppTheme.textPrimary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
@@ -310,7 +310,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(AppTheme.textPrimary)),
                               )
                             : const Text('Create Shop & Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
@@ -332,7 +332,7 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
       prefixIcon: Icon(icon, color: AppTheme.secondaryColor),
       suffixIcon: suffix,
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
+      fillColor: AppTheme.cardBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -340,3 +340,6 @@ class _CreateShopScreenState extends State<CreateShopScreen> {
     );
   }
 }
+
+
+

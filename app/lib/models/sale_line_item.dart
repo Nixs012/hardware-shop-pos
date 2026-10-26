@@ -48,3 +48,6 @@ class SaleLineItem {
 
   double get profit => (unitPriceAtSale - unitCostAtSale) * quantity;
 }
+
+
+

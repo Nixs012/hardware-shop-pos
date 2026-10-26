@@ -23,18 +23,18 @@ class MpesaUtils {
   /// Returns a user-friendly error message if [code] is invalid, or null if valid.
   static String? getValidationError(String? code) {
     if (code == null || code.trim().isEmpty) {
-      return 'M-Pesa transaction code is required.';
+      return 'M-Pesa transaction code is required';
     }
     final cleaned = code.replaceAll(RegExp(r'\s+'), '').toUpperCase();
     if (!_allowedCharsRegex.hasMatch(cleaned)) {
-      return 'Code must contain only letters and numbers.';
+      return 'Code must contain letters and digits only.';
     }
-    if (cleaned.length < 10) {
-      return 'Code must be exactly 10 characters (${cleaned.length}/10 entered).';
-    }
-    if (cleaned.length > 10) {
-      return 'Code cannot exceed 10 characters.';
+    if (cleaned.length != 10) {
+      return 'Code must be exactly 10 characters.';
     }
     return null;
   }
 }
+
+
+

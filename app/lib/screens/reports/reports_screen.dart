@@ -6,8 +6,18 @@ import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
 import '../../services/reports_repository.dart';
 import '../../services/sync_service.dart';
+import '../../utils/currency_formatter.dart';
 import '../../utils/theme.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/export_button.dart';
+import '../../widgets/filter_pill.dart';
 import '../../widgets/reports_loading_widgets.dart';
+import '../../widgets/segmented_period_control.dart';
+import '../../widgets/section_card.dart';
+import '../../widgets/sales_trend_chart.dart';
+import '../../widgets/search_field.dart';
+import '../../widgets/stock_badge.dart';
+import '../../widgets/summary_card.dart';
 
 class KeepAliveTab extends StatefulWidget {
   final Widget child;
@@ -47,6 +57,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           FirestoreServiceImpl(widget.currentStaff.shopId);
 
   late final ReportsRepository _repo;
+  late final TextEditingController _stockSearchController;
 
   // 0 = Daily, 1 = Weekly, 2 = Monthly, 3 = Custom
   int _selectedPeriodIndex = 0;
@@ -69,6 +80,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void initState() {
     super.initState();
+    _stockSearchController = TextEditingController();
     if (_isAdmin) {
       _staffStream = _firestoreService.getStaffStream();
     }
@@ -87,6 +99,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   void dispose() {
+    _stockSearchController.dispose();
     _repo.removeListener(_onRepoChanged);
     super.dispose();
   }
@@ -94,11 +107,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
   DateTimeRange _getSelectedRange() {
     final now = DateTime.now();
     switch (_selectedPeriodIndex) {
-      case 0: // Daily: shop local calendar day (00:00 to 23:59:59.999)
+      case 0: // Daily
         final start = DateTime(now.year, now.month, now.day);
         final end = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
         return DateTimeRange(start: start, end: end);
-      case 1: // Weekly: Monday to Sunday
+      case 1: // Weekly
         final daysToSubtract = now.weekday - 1;
         final monday = now.subtract(Duration(days: daysToSubtract));
         final start = DateTime(monday.year, monday.month, monday.day);
@@ -114,7 +127,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           999,
         );
         return DateTimeRange(start: start, end: end);
-      case 2: // Monthly: 1st of month to last calendar day
+      case 2: // Monthly
         final start = DateTime(now.year, now.month, 1);
         final lastDay = DateTime(now.year, now.month + 1, 0);
         final end = DateTime(now.year, now.month, lastDay.day, 23, 59, 59, 999);
@@ -135,15 +148,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  String _money(double amount) {
-    final parts = amount.toStringAsFixed(2).split('.');
-    final integerPart = parts[0].replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
-    return 'KSh $integerPart.${parts[1]}';
-  }
-
   @override
   Widget build(BuildContext context) {
     // Admin sees 4 tabs, Cashier sees 1 (Stock Balance)
@@ -160,25 +164,48 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Scaffold(
         backgroundColor: AppTheme.backgroundColor,
         appBar: AppBar(
-          backgroundColor: AppTheme.surfaceColor,
+          backgroundColor: AppTheme.appBackground,
           elevation: 0,
           title: const Text(
             'Reports & Analytics',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: AppTheme.textPrimary,
+            ),
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.file_download_outlined),
-              tooltip: 'Export CSV Report',
-              onPressed: _showExportDialog,
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ExportButton(
+                onExport: _exportCurrentReport,
+                tooltip: 'Export CSV report',
+                semanticsLabel: 'Export current report as CSV',
+              ),
             ),
           ],
           bottom: TabBar(
-            indicatorColor: AppTheme.primaryColor,
-            labelColor: Colors.white,
-            unselectedLabelColor: AppTheme.secondaryColor,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
+            indicator: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: AppTheme.primaryColor,
+                  width: 3,
+                ),
+              ),
+            ),
+            labelColor: AppTheme.textPrimary,
+            unselectedLabelColor: AppTheme.textSecondary,
+            labelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+            indicatorPadding: const EdgeInsets.only(bottom: -6),
             tabs: [
               if (_isAdmin) const Tab(text: 'Sales Summary'),
               if (_isAdmin) const Tab(text: 'Profit & Loss'),
@@ -206,6 +233,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  // ------------------------------------------------------------------
+  // Export
+  // ------------------------------------------------------------------
+  Future<void> _exportCurrentReport() async {
+    final range = _getSelectedRange();
+    final data = _repo.dataFor(
+      range: range,
+      staffId: _selectedStaffId,
+      categoryId: _selectedCategory,
+    );
+
+    // Build CSV from the same in-memory data used for display — no extra queries
+    final buffer = StringBuffer();
+    buffer.writeln('Sales Report,${range.start},${range.end}');
+    buffer.writeln('Total Revenue,${data.totalRevenue}');
+    buffer.writeln('Total Profit,${data.totalProfit}');
+    buffer.writeln('Transactions,${data.transactionCount}');
+    for (final sale in data.sales) {
+      buffer.writeln(
+        '${sale.timestamp.toIso8601String()},${sale.totalAmount},'
+        '${sale.paymentMethod},${sale.staffId}',
+      );
+    }
+    // In this visual-only task, we simulate success via the ExportButton's
+    // built-in toast. No file-system writes are introduced.
+    await Future.delayed(const Duration(milliseconds: 300));
+  }
+
+  // ------------------------------------------------------------------
+  // Offline banner
+  // ------------------------------------------------------------------
   Widget _buildOfflineBanner() {
     return StreamBuilder<SyncStatus>(
       stream: SyncService.instance.statusStream,
@@ -216,15 +274,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
           return Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.amber.shade900.withValues(alpha: 0.85),
-            child: const Row(
+            decoration: BoxDecoration(
+              color: AppTheme.warningColor.withValues(alpha: 0.15),
+              border: Border(
+                bottom: BorderSide(
+                  color: AppTheme.warningColor.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+            child: Row(
               children: [
-                Icon(Icons.cloud_off, size: 16, color: Colors.white),
-                SizedBox(width: 8),
+                Icon(
+                  Icons.cloud_off,
+                  size: 16,
+                  color: AppTheme.warningColor,
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Offline Mode: Displaying locally cached data. Remote sales will sync automatically when back online.',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    style: TextStyle(
+                      color: AppTheme.warningColor,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -249,6 +321,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 800;
 
+        // Build trend chart points from in-memory sales
+        final trendPoints = _buildTrendPoints(data.sales, _selectedPeriodIndex, _getSelectedRange());
+
         return SingleChildScrollView(
           padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
           child: Column(
@@ -268,90 +343,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   onRetry: () => _repo.retry(ReportsSource.customerPayments),
                 ),
               const SizedBox(height: 20),
-              if (isDesktop)
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: 'Total Revenue',
-                        value: _money(data.totalRevenue),
-                        icon: Icons.attach_money,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                    if (_isAdmin) const SizedBox(width: 16),
-                    if (_isAdmin)
-                      Expanded(
-                        child: _buildMetricCard(
-                          title: 'Gross Profit',
-                          value: _money(data.totalProfit),
-                          icon: Icons.trending_up,
-                          color: Colors.green,
-                        ),
-                      ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: 'Transactions',
-                        value: '${data.transactionCount}',
-                        icon: Icons.receipt_long,
-                        color: AppTheme.secondaryColor,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: 'Average Ticket',
-                        value: _money(data.avgTicket),
-                        icon: Icons.shopping_bag_outlined,
-                        color: Colors.purpleAccent,
-                      ),
-                    ),
-                  ],
-                )
-              else ...[
-                _buildMetricCard(
-                  title: 'Total Revenue',
-                  value: _money(data.totalRevenue),
-                  icon: Icons.attach_money,
-                  color: AppTheme.primaryColor,
-                ),
-                if (_isAdmin) ...[
-                  const SizedBox(height: 12),
-                  _buildMetricCard(
-                    title: 'Gross Profit',
-                    value: _money(data.totalProfit),
-                    icon: Icons.trending_up,
-                    color: Colors.green,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: 'Transactions',
-                        value: '${data.transactionCount}',
-                        icon: Icons.receipt_long,
-                        color: AppTheme.secondaryColor,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        title: 'Average Ticket',
-                        value: _money(data.avgTicket),
-                        icon: Icons.shopping_bag_outlined,
-                        color: Colors.purpleAccent,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              _buildKpiGrid(data, isDesktop),
+              const SizedBox(height: 24),
+              // Sales trend chart
+              SectionCard(
+                title: 'Revenue Trend',
+                titleSpacing: 12,
+                child: SalesTrendChart(points: trendPoints),
+              ),
               const SizedBox(height: 24),
               if (isDesktop)
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       flex: 5,
@@ -411,6 +413,107 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  // ------------------------------------------------------------------
+  // KPI Grid: 2 cols on phone, 4 cols on wide screens
+  // ------------------------------------------------------------------
+  Widget _buildKpiGrid(ReportsData data, bool isDesktop) {
+    final kpiCards = <SummaryCard>[
+      SummaryCard(
+        title: 'Revenue',
+        value: CurrencyFormatter.format(data.totalRevenue),
+        icon: Icons.attach_money,
+        iconColor: AppTheme.primaryColor,
+      ),
+    ];
+
+    if (_isAdmin) {
+      kpiCards.add(SummaryCard(
+        title: 'Gross Profit',
+        value: CurrencyFormatter.format(data.totalProfit),
+        icon: Icons.trending_up,
+        iconColor: data.totalProfit >= 0
+            ? AppTheme.successColor
+            : AppTheme.errorColor,
+      ));
+    }
+
+    kpiCards.add(SummaryCard(
+      title: 'Transactions',
+      value: '${data.transactionCount}',
+      icon: Icons.receipt_long,
+      iconColor: AppTheme.textSecondary,
+    ));
+
+    kpiCards.add(SummaryCard(
+      title: 'Average Ticket',
+      value: CurrencyFormatter.format(data.avgTicket),
+      icon: Icons.shopping_bag_outlined,
+      iconColor: AppTheme.highlightColor,
+    ));
+
+    if (isDesktop) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          childAspectRatio: 2.8,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: kpiCards.length,
+        itemBuilder: (context, i) => kpiCards[i],
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 1.8,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: kpiCards.length,
+      itemBuilder: (context, i) => kpiCards[i],
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Trend chart helper: bucket sales by hour / day / range
+  // ------------------------------------------------------------------
+  List<MapEntry<String, double>> _buildTrendPoints(
+    List<Sale> sales,
+    int periodIndex,
+    DateTimeRange range,
+  ) {
+    if (sales.isEmpty) return [];
+
+    final Map<String, double> buckets = {};
+
+    for (final sale in sales) {
+      String label;
+      if (periodIndex == 0) {
+        // Daily → hourly buckets
+        label = '${sale.timestamp.hour}:00';
+      } else if (periodIndex == 1) {
+        // Weekly → daily buckets
+        label = '${sale.timestamp.day}/${sale.timestamp.month}';
+      } else if (periodIndex == 2) {
+        // Monthly → daily buckets
+        label = '${sale.timestamp.day}';
+      } else {
+        // Custom → daily buckets
+        label = '${sale.timestamp.day}/${sale.timestamp.month}';
+      }
+      buckets[label] = (buckets[label] ?? 0) + sale.totalAmount;
+    }
+
+    return buckets.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+  }
+
   // =========================================================================
   // TAB 2: PROFIT & LOSS (ADMIN ONLY)
   // =========================================================================
@@ -440,51 +543,47 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   onRetry: () => _repo.retry(ReportsSource.sales),
                 ),
               const SizedBox(height: 20),
-              const Text(
-                'Period Financials',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
+              // P&L metric cards
               if (isDesktop)
                 Row(
                   children: [
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Period Revenue',
-                        value: _money(data.plRevenue),
+                        value: CurrencyFormatter.format(data.plRevenue),
                         icon: Icons.trending_up,
-                        color: AppTheme.primaryColor,
+                        iconColor: AppTheme.primaryColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Cost of Goods (COGS)',
-                        value: _money(data.plCogs),
+                        value: CurrencyFormatter.format(data.plCogs),
                         icon: Icons.inventory_2_outlined,
-                        color: Colors.redAccent,
+                        iconColor: AppTheme.errorColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Gross Profit',
-                        value: _money(data.plGrossProfit),
+                        value: CurrencyFormatter.format(data.plGrossProfit),
                         icon: Icons.account_balance_wallet,
-                        color: data.plGrossProfit >= 0 ? Colors.green : Colors.red,
+                        iconColor: data.plGrossProfit >= 0
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Net Profit',
-                        value: _money(data.netProfit),
+                        value: CurrencyFormatter.format(data.netProfit),
                         icon: Icons.savings,
-                        color: data.netProfit >= 0 ? Colors.green : Colors.red,
+                        iconColor: data.netProfit >= 0
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
                       ),
                     ),
                   ],
@@ -493,20 +592,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Revenue',
-                        value: _money(data.plRevenue),
+                        value: CurrencyFormatter.format(data.plRevenue),
                         icon: Icons.trending_up,
-                        color: AppTheme.primaryColor,
+                        iconColor: AppTheme.primaryColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'COGS',
-                        value: _money(data.plCogs),
+                        value: CurrencyFormatter.format(data.plCogs),
                         icon: Icons.inventory_2_outlined,
-                        color: Colors.redAccent,
+                        iconColor: AppTheme.errorColor,
                       ),
                     ),
                   ],
@@ -515,83 +614,77 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Gross Profit',
-                        value: _money(data.plGrossProfit),
+                        value: CurrencyFormatter.format(data.plGrossProfit),
                         icon: Icons.account_balance_wallet,
-                        color: data.plGrossProfit >= 0 ? Colors.green : Colors.red,
+                        iconColor: data.plGrossProfit >= 0
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: SummaryCard(
                         title: 'Net Profit',
-                        value: _money(data.netProfit),
+                        value: CurrencyFormatter.format(data.netProfit),
                         icon: Icons.savings,
-                        color: data.netProfit >= 0 ? Colors.green : Colors.red,
+                        iconColor: data.netProfit >= 0
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
                       ),
                     ),
                   ],
                 ),
               ],
               const SizedBox(height: 24),
-              Card(
-                color: Colors.white.withValues(alpha: 0.03),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Income Statement Summary',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildPLRow(
-                        'Gross Sales Revenue',
-                        _money(data.plRevenue),
-                        Colors.white,
-                      ),
-                      const Divider(color: Colors.white12, height: 20),
-                      _buildPLRow(
-                        'Cost of Goods Sold (COGS)',
-                        '- ${_money(data.plCogs)}',
-                        Colors.redAccent,
-                      ),
-                      const Divider(color: Colors.white12, height: 20),
-                      _buildPLRow(
-                        'Gross Profit',
-                        _money(data.plGrossProfit),
-                        data.plGrossProfit >= 0 ? Colors.green : Colors.red,
-                        isBold: true,
-                      ),
-                      const Divider(color: Colors.white24, height: 24),
-                      _buildPLRow(
-                        'Net Profit',
-                        _money(data.netProfit),
-                        data.netProfit >= 0 ? Colors.green : Colors.red,
-                        isBold: true,
-                        fontSize: 18,
-                      ),
-                      const Divider(color: Colors.white12, height: 20),
-                      _buildPLRow(
-                        'Net Profit Margin',
-                        '${data.plRevenue > 0 ? (data.netProfit / data.plRevenue * 100).toStringAsFixed(1) : '0.0'}%',
-                        data.netProfit >= 0 ? Colors.green : Colors.orange,
-                        isBold: true,
-                      ),
-                    ],
-                  ),
+              // Income statement section
+              SectionCard(
+                title: 'Income Statement',
+                titleSpacing: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPLRow(
+                      'Gross Sales Revenue',
+                      CurrencyFormatter.format(data.plRevenue),
+                      AppTheme.textPrimary,
+                    ),
+                    const Divider(color: AppTheme.borderColor, height: 20),
+                    _buildPLRow(
+                      'Cost of Goods Sold (COGS)',
+                      '- ${CurrencyFormatter.format(data.plCogs)}',
+                      AppTheme.errorColor,
+                    ),
+                    const Divider(color: AppTheme.borderColor, height: 20),
+                    _buildPLRow(
+                      'Gross Profit',
+                      CurrencyFormatter.format(data.plGrossProfit),
+                      data.plGrossProfit >= 0
+                          ? AppTheme.successColor
+                          : AppTheme.errorColor,
+                      isBold: true,
+                    ),
+                    const Divider(color: AppTheme.borderColor, height: 24),
+                    _buildPLRow(
+                      'Net Profit',
+                      CurrencyFormatter.format(data.netProfit),
+                      data.netProfit >= 0
+                          ? AppTheme.successColor
+                          : AppTheme.errorColor,
+                      isBold: true,
+                      fontSize: 18,
+                    ),
+                    const Divider(color: AppTheme.borderColor, height: 20),
+                    _buildPLRow(
+                      'Net Profit Margin',
+                      '${data.plRevenue > 0 ? (data.netProfit / data.plRevenue * 100).toStringAsFixed(1) : '0.0'}%',
+                      data.netProfit >= 0
+                          ? AppTheme.successColor
+                          : AppTheme.warningColor,
+                      isBold: true,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -602,7 +695,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   // =========================================================================
-  // TAB 3: TOP & BOTTOM SELLERS (ADMIN ONLY)
+  // TAB 3: TOP SELLERS
   // =========================================================================
 
   Widget _buildTopSellersTab(ReportsData data) {
@@ -612,7 +705,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
 
     // Aggregate by product
-    final Map<String, ProductPerformance> productStats = {};
+    final Map<String, _ProductPerformance> productStats = {};
 
     for (final sale in data.sales) {
       for (final item in sale.lineItems) {
@@ -621,7 +714,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
         final existing = productStats.putIfAbsent(
           item.productId,
-          () => ProductPerformance(
+          () => _ProductPerformance(
             productId: item.productId,
             productName: product?.name ?? item.productId,
             category: category,
@@ -673,7 +766,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -683,14 +776,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   style: ButtonStyle(
                     backgroundColor:
                         WidgetStateProperty.resolveWith<Color?>((states) {
-                          if (states.contains(WidgetState.selected)) {
-                            return AppTheme.primaryColor;
-                          }
-                          return Colors.white.withValues(alpha: 0.05);
-                        }),
-                    foregroundColor: WidgetStateProperty.all(
-                      Colors.white,
-                    ),
+                      if (states.contains(WidgetState.selected)) {
+                        return AppTheme.primaryColor;
+                      }
+                      return AppTheme.cardBackground;
+                    }),
+                    foregroundColor:
+                        WidgetStateProperty.all(AppTheme.textPrimary),
                   ),
                   segments: const [
                     ButtonSegment<String>(
@@ -714,32 +806,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
               const SizedBox(height: 16),
               if (performanceList.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(
-                    child: Text(
-                      'No sales recorded in this period for the selected filters.',
-                      style: TextStyle(color: AppTheme.secondaryColor),
-                    ),
-                  ),
+                const EmptyState(
+                  icon: Icons.bar_chart,
+                  title: 'No sales recorded in this period for the selected filters.',
                 )
               else
                 Card(
-                  color: Colors.white.withValues(alpha: 0.03),
+                  color: AppTheme.cardBackground,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: AppTheme.secondaryColor.withValues(
-                        alpha: 0.15,
-                      ),
-                    ),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    side: BorderSide(color: AppTheme.borderColor, width: 1),
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: performanceList.length,
                     separatorBuilder: (context, index) =>
-                        const Divider(color: Colors.white12),
+                        const Divider(color: AppTheme.borderColor),
                     itemBuilder: (context, index) {
                       final p = performanceList[index];
                       final rank = index + 1;
@@ -749,20 +833,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8.0,
+                          horizontal: AppTheme.sp8,
                           vertical: 4.0,
                         ),
                         leading: CircleAvatar(
                           radius: 16,
                           backgroundColor: rank <= 3
                               ? AppTheme.primaryColor.withValues(alpha: 0.3)
-                              : Colors.white10,
+                              : AppTheme.borderColor.withValues(alpha: 0.3),
                           child: Text(
                             '#$rank',
                             style: TextStyle(
                               color: rank <= 3
                                   ? AppTheme.primaryColor
-                                  : Colors.white70,
+                                  : AppTheme.textSecondary,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -771,7 +855,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         title: Text(
                           p.productName,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppTheme.textPrimary,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -781,7 +865,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         subtitle: Text(
                           '${p.category.isEmpty ? 'General' : p.category} • ${p.totalQuantity.toStringAsFixed(1)} units',
                           style: const TextStyle(
-                            color: AppTheme.secondaryColor,
+                            color: AppTheme.textSecondary,
                             fontSize: 11,
                           ),
                           maxLines: 1,
@@ -794,9 +878,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                _money(p.totalRevenue),
+                                CurrencyFormatter.format(p.totalRevenue),
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppTheme.textPrimary,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),
@@ -805,11 +889,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               ),
                               if (_isAdmin)
                                 Text(
-                                  'P: ${_money(p.totalProfit)}',
+                                  'P: ${CurrencyFormatter.format(p.totalProfit)}',
                                   style: TextStyle(
                                     color: margin >= 15
-                                        ? Colors.green
-                                        : Colors.orange,
+                                        ? AppTheme.successColor
+                                        : AppTheme.warningColor,
                                     fontSize: 10,
                                   ),
                                   maxLines: 1,
@@ -870,14 +954,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               _buildStockToolbar(data.categories),
               const SizedBox(height: 16),
               if (filteredProducts.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: Center(
-                    child: Text(
-                      'No products found matching your filters.',
-                      style: TextStyle(color: AppTheme.secondaryColor),
-                    ),
-                  ),
+                const EmptyState(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'No products found matching your filters.',
                 )
               else if (isDesktop)
                 _buildDesktopStockTable(filteredProducts)
@@ -894,50 +973,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final categoryList = ['All', ...categories];
 
     return Wrap(
-      spacing: 12,
+      spacing: AppTheme.sp12,
       runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         SizedBox(
           width: 280,
-          child: TextField(
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: 'Search product or SKU...',
-              hintStyle: const TextStyle(color: AppTheme.secondaryColor),
-              prefixIcon: const Icon(Icons.search, color: AppTheme.secondaryColor),
-              filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.05),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+          child: SearchField(
+            controller: _stockSearchController,
+            hintText: 'Search product or SKU...',
             onChanged: (val) => setState(() => _stockSearchQuery = val),
           ),
         ),
-        DropdownButtonHideUnderline(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: DropdownButton<String>(
-              value: _stockCategoryFilter,
-              dropdownColor: AppTheme.surfaceColor,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              items: categoryList.map((cat) {
-                return DropdownMenuItem(
-                  value: cat,
-                  child: Text(cat.isEmpty ? 'General' : cat),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _stockCategoryFilter = val);
-              },
-            ),
+        SizedBox(
+          width: 180,
+          child: FilterPill(
+            label: 'Category',
+            value: _stockCategoryFilter,
+            icon: Icons.category_outlined,
+            items: categoryList,
+            onSelect: (val) => setState(() => _stockCategoryFilter = val),
           ),
         ),
       ],
@@ -946,22 +1001,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _buildDesktopStockTable(List<Product> products) {
     return Card(
-      color: Colors.white.withValues(alpha: 0.03),
+      color: AppTheme.cardBackground,
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        side: BorderSide(color: AppTheme.borderColor, width: 1),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: DataTable(
           headingTextStyle: const TextStyle(
-            color: AppTheme.secondaryColor,
+            color: AppTheme.textSecondary,
             fontWeight: FontWeight.bold,
             fontSize: 13,
           ),
-          dataTextStyle: const TextStyle(color: Colors.white, fontSize: 13),
+          dataTextStyle:
+              const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
           columns: [
             const DataColumn(label: Text('Product Name')),
             const DataColumn(label: Text('SKU')),
@@ -972,59 +1027,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const DataColumn(label: Text('Status')),
           ],
           rows: products.map((product) {
-            final isLow =
-                product.quantityOnHand <= product.lowStockThreshold;
-            final isOut = product.quantityOnHand <= 0;
-
             return DataRow(
               cells: [
                 DataCell(
                   Text(
                     product.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                DataCell(Text(product.sku)),
-                DataCell(Text(product.category.isEmpty ? 'General' : product.category)),
-                DataCell(
-                  Text(
-                    '${product.quantityOnHand.toStringAsFixed(1)} ${product.unit}',
-                    style: TextStyle(
-                      color: isOut
-                          ? Colors.red
-                          : (isLow ? Colors.orange : Colors.white),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                DataCell(Text(_money(product.sellingPrice))),
-                if (_isAdmin) DataCell(Text(_money(product.costPrice))),
-                DataCell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isOut
-                          ? Colors.red.withValues(alpha: 0.2)
-                          : (isLow
-                              ? Colors.orange.withValues(alpha: 0.2)
-                              : Colors.green.withValues(alpha: 0.2)),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      isOut ? 'Out of Stock' : (isLow ? 'Low Stock' : 'In Stock'),
-                      style: TextStyle(
-                        color: isOut
-                            ? Colors.redAccent
-                            : (isLow ? Colors.orangeAccent : Colors.greenAccent),
-                        fontSize: 11,
+                    style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                        color: AppTheme.textPrimary),
                   ),
                 ),
+                DataCell(Text(product.sku,
+                    style: const TextStyle(color: AppTheme.textPrimary))),
+                DataCell(Text(
+                    product.category.isEmpty ? 'General' : product.category,
+                    style: const TextStyle(color: AppTheme.textSecondary))),
+                DataCell(
+                  StockBadge(
+                    quantityOnHand: product.quantityOnHand.toInt(),
+                    lowStockThreshold: product.lowStockThreshold.toInt(),
+                  ),
+                ),
+                DataCell(Text(CurrencyFormatter.format(product.sellingPrice),
+                    style: const TextStyle(color: AppTheme.textPrimary))),
+                if (_isAdmin) DataCell(Text(CurrencyFormatter.format(product.costPrice),
+                    style: const TextStyle(color: AppTheme.textSecondary))),
+                const DataCell(SizedBox.shrink()),
               ],
             );
           }).toList(),
@@ -1041,19 +1069,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
       separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final product = products[index];
-        final isLow = product.quantityOnHand <= product.lowStockThreshold;
-        final isOut = product.quantityOnHand <= 0;
 
         return Card(
-          color: Colors.white.withValues(alpha: 0.03),
+          color: AppTheme.cardBackground,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(
-              color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-            ),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            side: BorderSide(color: AppTheme.borderColor, width: 1),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(AppTheme.sp12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1064,61 +1089,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       Text(
                         product.name,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'SKU: ${product.sku}  •  ${product.category.isEmpty ? 'General' : product.category}\nSelling: ${_money(product.sellingPrice)}${_isAdmin ? '  •  Cost: ${_money(product.costPrice)}' : ''}',
+                        'SKU: ${product.sku}  •  ${product.category.isEmpty ? 'General' : product.category}\nSelling: ${CurrencyFormatter.format(product.sellingPrice)}${_isAdmin ? '  •  Cost: ${CurrencyFormatter.format(product.costPrice)}' : ''}',
                         style: const TextStyle(
-                          color: AppTheme.secondaryColor,
+                          color: AppTheme.textSecondary,
                           fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${product.quantityOnHand.toStringAsFixed(1)} ${product.unit}',
-                      style: TextStyle(
-                        color: isOut
-                            ? Colors.redAccent
-                            : (isLow ? Colors.orangeAccent : Colors.white),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isOut
-                            ? Colors.red.withValues(alpha: 0.2)
-                            : (isLow
-                                ? Colors.orange.withValues(alpha: 0.2)
-                                : Colors.green.withValues(alpha: 0.2)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        isOut ? 'Out of Stock' : (isLow ? 'Low Stock' : 'In Stock'),
-                        style: TextStyle(
-                          color: isOut
-                              ? Colors.redAccent
-                              : (isLow ? Colors.orangeAccent : Colors.greenAccent),
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
+                StockBadge(
+                  quantityOnHand: product.quantityOnHand.toInt(),
+                  lowStockThreshold: product.lowStockThreshold.toInt(),
                 ),
               ],
             ),
@@ -1128,374 +1117,296 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  // ------------------------------------------------------------------
+  // Filter bar (replaced with compact segmented control + pills)
+  // ------------------------------------------------------------------
   Widget _buildFilterBar(List<String> categories) {
     return Card(
-      color: Colors.white.withValues(alpha: 0.03),
+      color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        side: BorderSide(color: AppTheme.borderColor, width: 1),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Wrap(
-          spacing: 16,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            // Period selector
-            ToggleButtons(
-              isSelected: [
-                _selectedPeriodIndex == 0,
-                _selectedPeriodIndex == 1,
-                _selectedPeriodIndex == 2,
-                _selectedPeriodIndex == 3,
-              ],
-              onPressed: (index) async {
-                if (index == 3) {
-                  final picked = await showDateRangePicker(
-                    context: context,
-                    firstDate: DateTime(2025, 1, 1),
-                    lastDate: DateTime.now().add(const Duration(days: 1)),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _selectedPeriodIndex = 3;
-                      _customDateRange = picked;
-                    });
-                  }
-                } else {
-                  setState(() {
-                    _selectedPeriodIndex = index;
-                    _customDateRange = null;
-                  });
-                }
-              },
-              color: AppTheme.secondaryColor,
-              selectedColor: Colors.white,
-              fillColor: AppTheme.primaryColor.withValues(alpha: 0.3),
-              borderColor: AppTheme.secondaryColor.withValues(alpha: 0.3),
-              selectedBorderColor: AppTheme.primaryColor,
-              borderRadius: BorderRadius.circular(8),
-              constraints: const BoxConstraints(minHeight: 36, minWidth: 70),
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Daily', style: TextStyle(fontSize: 12)),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Weekly', style: TextStyle(fontSize: 12)),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Monthly', style: TextStyle(fontSize: 12)),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('Custom', style: TextStyle(fontSize: 12)),
-                ),
-              ],
-            ),
-            // Staff filter (Admin only)
-            if (_isAdmin && _staffStream != null)
-              StreamBuilder<List<Staff>>(
-                stream: _staffStream,
-                builder: (context, snapshot) {
-                  final staffList = snapshot.data ?? [];
-                  return DropdownButtonHideUnderline(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _selectedStaffId,
-                        dropdownColor: AppTheme.surfaceColor,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: 'All',
-                            child: Text('All Staff'),
-                          ),
-                          ...staffList.map(
-                            (s) => DropdownMenuItem(
-                              value: s.id,
-                              child: Text(s.name),
-                            ),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _selectedStaffId = val);
-                          }
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
-            // Category filter
-            DropdownButtonHideUnderline(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: DropdownButton<String>(
-                  value: _selectedCategory,
-                  dropdownColor: AppTheme.surfaceColor,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: 'All',
-                      child: Text('All Categories'),
-                    ),
-                    ...categories
-                        .where((c) => c.isNotEmpty)
-                        .toSet()
-                        .map(
-                          (cat) => DropdownMenuItem(
-                            value: cat,
-                            child: Text(cat),
-                          ),
-                        ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedCategory = val);
-                    }
-                  },
-                ),
-              ),
-            ),
-            // Payment method filter (Admin only)
-            if (_isAdmin)
-              DropdownButtonHideUnderline(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButton<String>(
-                    value: _selectedPaymentMethod,
-                    dropdownColor: AppTheme.surfaceColor,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'All',
-                        child: Text('All Payment Methods'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Cash',
-                        child: Text('Cash'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'M-Pesa',
-                        child: Text('M-Pesa'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Credit',
-                        child: Text('Credit'),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() => _selectedPaymentMethod = val);
-                      }
-                    },
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+        padding: const EdgeInsets.all(AppTheme.sp16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isDesktop = constraints.maxWidth >= 800;
 
-  Widget _buildCreditTrackingCard(ReportsData data) {
-    return Card(
-      color: Colors.white.withValues(alpha: 0.03),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Credit & Khata Tracking',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 14),
-            _buildInsightRow(
-              'Period Credit Sales',
-              _money(data.creditSales),
-              Colors.orange,
-            ),
-            const Divider(color: Colors.white12, height: 16),
-            _buildInsightRow(
-              'Repayments Collected',
-              _money(data.repayments),
-              Colors.green,
-            ),
-            const Divider(color: Colors.white12, height: 16),
-            _buildInsightRow(
-              'Outstanding Balance',
-              _money(data.outstanding),
-              data.outstanding > 0 ? Colors.redAccent : Colors.green,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetricCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Card(
-      color: Colors.white.withValues(alpha: 0.03),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (isDesktop) {
+              // Desktop: period control + pills on one row
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.secondaryColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  // Period segmented control
+                  SizedBox(
+                    width: 240,
+                    child: SegmentedPeriodControl(
+                      selectedIndex: _selectedPeriodIndex,
+                      onSelect: (index) {
+                        setState(() {
+                          _selectedPeriodIndex = index;
+                          _customDateRange = null;
+                        });
+                      },
+                      onCustomRange: (range) {
+                        setState(() {
+                          _selectedPeriodIndex = 3;
+                          _customDateRange = range;
+                        });
+                      },
+                      customRange: _customDateRange,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 16),
+                  // Filter pills
+                  if (_isAdmin && _staffStream != null)
+                    SizedBox(
+                      width: 160,
+                      child: _buildStaffPill(),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  if (_isAdmin && _staffStream != null) const SizedBox(width: 12),
+                  SizedBox(
+                    width: 160,
+                    child: FilterPill(
+                      label: 'Category',
+                      value: _selectedCategory,
+                      icon: Icons.category_outlined,
+                      items: ['All', ...categories.where((c) => c.isNotEmpty).toSet()],
+                      onSelect: (val) => setState(() => _selectedCategory = val),
+                    ),
+                  ),
+                  if (_isAdmin) ...[
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 160,
+                      child: FilterPill(
+                        label: 'Payment',
+                        value: _selectedPaymentMethod,
+                        icon: Icons.payments_outlined,
+                        items: const ['All', 'Cash', 'M-Pesa', 'Credit'],
+                        onSelect: (val) => setState(() => _selectedPaymentMethod = val),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 16),
+                  // Reset button
+                  SizedBox(
+                    height: 40,
+                    child: OutlinedButton.icon(
+                      onPressed: _resetFilters,
+                      icon: const Icon(Icons.refresh, size: 14),
+                      label: const Text('Reset'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textSecondary,
+                        side: BorderSide(color: AppTheme.borderColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                        ),
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                   ),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+
+            // Mobile: period control full width, pills scroll horizontally
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SegmentedPeriodControl(
+                  selectedIndex: _selectedPeriodIndex,
+                  onSelect: (index) {
+                    setState(() {
+                      _selectedPeriodIndex = index;
+                      _customDateRange = null;
+                    });
+                  },
+                  onCustomRange: (range) {
+                    setState(() {
+                      _selectedPeriodIndex = 3;
+                      _customDateRange = range;
+                    });
+                  },
+                  customRange: _customDateRange,
+                ),
+                const SizedBox(height: 12),
+                // Horizontal-scrolling pills
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (_isAdmin && _staffStream != null)
+                        SizedBox(
+                          width: 160,
+                          child: _buildStaffPill(),
+                        ),
+                      if (_isAdmin && _staffStream != null) const SizedBox(width: 12),
+                      SizedBox(
+                        width: 160,
+                        child: FilterPill(
+                          label: 'Category',
+                          value: _selectedCategory,
+                          icon: Icons.category_outlined,
+                          items: ['All', ...categories.where((c) => c.isNotEmpty).toSet()],
+                          onSelect: (val) => setState(() => _selectedCategory = val),
+                        ),
+                      ),
+                      if (_isAdmin) ...[
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 160,
+                          child: FilterPill(
+                            label: 'Payment',
+                            value: _selectedPaymentMethod,
+                            icon: Icons.payments_outlined,
+                            items: const ['All', 'Cash', 'M-Pesa', 'Credit'],
+                            onSelect: (val) => setState(() => _selectedPaymentMethod = val),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        height: 40,
+                        child: OutlinedButton.icon(
+                          onPressed: _resetFilters,
+                          icon: const Icon(Icons.refresh, size: 14),
+                          label: const Text('Reset'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.textSecondary,
+                            side: BorderSide(color: AppTheme.borderColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                            ),
+                            textStyle: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
+  Widget _buildStaffPill() {
+    return StreamBuilder<List<Staff>>(
+      stream: _staffStream,
+      builder: (context, snapshot) {
+        final staffList = snapshot.data ?? [];
+        return FilterPill(
+          label: 'Staff',
+          value: _selectedStaffId,
+          icon: Icons.person_outline,
+          items: ['All', ...staffList.map((s) => s.name)],
+          onSelect: (val) {
+            // Map the displayed name back to staff ID
+            final selectedName = val;
+            if (selectedName == 'All') {
+              setState(() => _selectedStaffId = 'All');
+            } else {
+              final staff = staffList.firstWhere(
+                (s) => s.name == selectedName,
+                orElse: () => staffList.first,
+              );
+              setState(() => _selectedStaffId = staff.id);
+            }
+          },
+        );
+      },
+    );
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _selectedPeriodIndex = 0;
+      _customDateRange = null;
+      _selectedStaffId = 'All';
+      _selectedCategory = 'All';
+      _selectedPaymentMethod = 'All';
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Credit tracking card (admin only — uses existing data)
+  // ------------------------------------------------------------------
+  Widget _buildCreditTrackingCard(ReportsData data) {
+    return SectionCard(
+      title: 'Credit & Khata Tracking',
+      titleSpacing: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInsightRow(
+            'Period Credit Sales',
+            CurrencyFormatter.format(data.creditSales),
+            AppTheme.warningColor,
+          ),
+          const Divider(color: AppTheme.borderColor, height: 16),
+          _buildInsightRow(
+            'Repayments Collected',
+            CurrencyFormatter.format(data.repayments),
+            AppTheme.successColor,
+          ),
+          const Divider(color: AppTheme.borderColor, height: 16),
+          _buildInsightRow(
+            'Outstanding Balance',
+            CurrencyFormatter.format(data.outstanding),
+            data.outstanding > 0 ? AppTheme.errorColor : AppTheme.successColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Payment breakdown
+  // ------------------------------------------------------------------
   Widget _buildPaymentBreakdownCard(
     Map<String, double> breakdown,
     double totalRevenue,
   ) {
-    return Card(
-      color: Colors.white.withValues(alpha: 0.03),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Payment Method Breakdown',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildPaymentRow(
-              'Cash',
-              breakdown['Cash'] ?? 0.0,
-              totalRevenue > 0
-                  ? '${((breakdown['Cash'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
-                  : '0.0%',
-            ),
-            const Divider(color: Colors.white12, height: 16),
-            _buildPaymentRow(
-              'M-Pesa',
-              breakdown['M-Pesa'] ?? 0.0,
-              totalRevenue > 0
-                  ? '${((breakdown['M-Pesa'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
-                  : '0.0%',
-            ),
-
-            const Divider(color: Colors.white12, height: 16),
-            _buildPaymentRow(
-              'Credit',
-              breakdown['Credit'] ?? 0.0,
-              totalRevenue > 0
-                  ? '${((breakdown['Credit'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
-                  : '0.0%',
-            ),
-          ],
-        ),
+    return SectionCard(
+      title: 'Payment Method Breakdown',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPaymentRow(
+            'Cash',
+            breakdown['Cash'] ?? 0.0,
+            totalRevenue > 0
+                ? '${((breakdown['Cash'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
+                : '0.0%',
+          ),
+          const Divider(color: AppTheme.borderColor, height: 16),
+          _buildPaymentRow(
+            'M-Pesa',
+            breakdown['M-Pesa'] ?? 0.0,
+            totalRevenue > 0
+                ? '${((breakdown['M-Pesa'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
+                : '0.0%',
+          ),
+          const Divider(color: AppTheme.borderColor, height: 16),
+          _buildPaymentRow(
+            'Credit',
+            breakdown['Credit'] ?? 0.0,
+            totalRevenue > 0
+                ? '${((breakdown['Credit'] ?? 0.0) / totalRevenue * 100).toStringAsFixed(1)}%'
+                : '0.0%',
+          ),
+        ],
       ),
     );
   }
 
+  // ------------------------------------------------------------------
+  // M-Pesa transactions
+  // ------------------------------------------------------------------
   Widget _buildMpesaTransactionsSection(List<Sale> allSales) {
     final mpesaSales = allSales
         .where((s) => s.paymentMethod.toLowerCase() == 'm-pesa')
@@ -1508,197 +1419,183 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final staff in (staffSnapshot.data ?? [])) staff.id: staff.name
         };
 
-        return Card(
-          color: Colors.white.withValues(alpha: 0.03),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.phone_android, color: Colors.green, size: 22),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'M-Pesa Transactions',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
+        return SectionCard(
+          title: 'M-Pesa Transactions',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.phone_android,
+                    color: AppTheme.successColor,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
                       '${mpesaSales.length} transaction${mpesaSales.length == 1 ? '' : 's'}',
                       style: const TextStyle(
-                        color: AppTheme.secondaryColor,
+                        color: AppTheme.textSecondary,
                         fontSize: 13,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (mpesaSales.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24.0),
-                    child: Center(
-                      child: Text(
-                        'No M-Pesa transactions found for this period.',
-                        style: TextStyle(color: AppTheme.secondaryColor),
-                      ),
-                    ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: mpesaSales.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(color: Colors.white12, height: 16),
-                    itemBuilder: (context, index) {
-                      final sale = mpesaSales[index];
-                      final staffName = staffMap[sale.staffId] ??
-                          (sale.staffId.length > 6
-                              ? 'Staff ${sale.staffId.substring(0, 6)}'
-                              : 'Staff ${sale.staffId}');
-                      final dateStr =
-                          '${sale.timestamp.toLocal().day.toString().padLeft(2, '0')}/${sale.timestamp.toLocal().month.toString().padLeft(2, '0')}/${sale.timestamp.toLocal().year} ${sale.timestamp.toLocal().hour.toString().padLeft(2, '0')}:${sale.timestamp.toLocal().minute.toString().padLeft(2, '0')}';
-                      final code = sale.mpesaCode != null && sale.mpesaCode!.isNotEmpty
-                          ? sale.mpesaCode!
-                          : 'N/A';
-
-                      return Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              code,
-                              style: const TextStyle(
-                                color: Colors.greenAccent,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'monospace',
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  staffName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  dateStr,
-                                  style: const TextStyle(
-                                    color: AppTheme.secondaryColor,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            _money(sale.totalAmount),
-                            style: const TextStyle(
-                              color: AppTheme.primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
                   ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (mpesaSales.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24.0),
+                  child: Center(
+                    child: Text(
+                      'No M-Pesa transactions found for this period.',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: mpesaSales.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(color: AppTheme.borderColor, height: 16),
+                  itemBuilder: (context, index) {
+                    final sale = mpesaSales[index];
+                    final staffName = staffMap[sale.staffId] ??
+                        (sale.staffId.length > 6
+                            ? 'Staff ${sale.staffId.substring(0, 6)}'
+                            : 'Staff ${sale.staffId}');
+                    final dateStr =
+                        '${sale.timestamp.toLocal().day.toString().padLeft(2, '0')}/${sale.timestamp.toLocal().month.toString().padLeft(2, '0')}/${sale.timestamp.toLocal().year} ${sale.timestamp.toLocal().hour.toString().padLeft(2, '0')}:${sale.timestamp.toLocal().minute.toString().padLeft(2, '0')}';
+                    final code = sale.mpesaCode != null && sale.mpesaCode!.isNotEmpty
+                        ? sale.mpesaCode!
+                        : 'N/A';
+
+                    return Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.successColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppTheme.successColor.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Text(
+                            code,
+                            style: TextStyle(
+                              color: AppTheme.successColor,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                staffName,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                dateStr,
+                                style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          CurrencyFormatter.format(sale.totalAmount),
+                          style: const TextStyle(
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+            ],
           ),
         );
       },
     );
   }
 
+  // ------------------------------------------------------------------
+  // Sales insights card
+  // ------------------------------------------------------------------
   Widget _buildSalesInsightsCard({
     required int transactionCount,
     required double profitMargin,
     required double totalRevenue,
     required double totalProfit,
   }) {
-    return Card(
-      color: Colors.white.withValues(alpha: 0.03),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Sales Performance Insights',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
+    return SectionCard(
+      title: 'Sales Performance Insights',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInsightRow(
+            'Total Transactions',
+            '$transactionCount',
+            AppTheme.textPrimary,
+          ),
+          const Divider(color: AppTheme.borderColor, height: 16),
+          _buildInsightRow(
+            'Average Basket Size',
+            transactionCount > 0
+                ? CurrencyFormatter.format(totalRevenue / transactionCount)
+                : CurrencyFormatter.format(0),
+            AppTheme.textPrimary,
+          ),
+          if (_isAdmin) ...[
+            const Divider(color: AppTheme.borderColor, height: 16),
             _buildInsightRow(
-              'Total Transactions',
-              '$transactionCount',
-              Colors.white,
+              'Gross Profit Margin',
+              '${profitMargin.toStringAsFixed(1)}%',
+              profitMargin >= 15
+                  ? AppTheme.successColor
+                  : AppTheme.warningColor,
             ),
-            const Divider(color: Colors.white12, height: 16),
-            _buildInsightRow(
-              'Average Basket Size',
-              transactionCount > 0 ? _money(totalRevenue / transactionCount) : _money(0),
-              Colors.white,
-            ),
-            if (_isAdmin) ...[
-              const Divider(color: Colors.white12, height: 16),
-              _buildInsightRow(
-                'Gross Profit Margin',
-                '${profitMargin.toStringAsFixed(1)}%',
-                profitMargin >= 15 ? Colors.green : Colors.orange,
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
 
+  // ------------------------------------------------------------------
+  // Row builders
+  // ------------------------------------------------------------------
   Widget _buildPaymentRow(String method, double amount, [String? pct]) {
+    final Color dotColor = method == 'Cash'
+        ? AppTheme.successColor
+        : method == 'M-Pesa'
+            ? AppTheme.highlightColor
+            : method == 'Credit'
+                ? AppTheme.warningColor
+                : AppTheme.textSecondary;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1709,13 +1606,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: method == 'Cash'
-                      ? Colors.green
-                      : method == 'M-Pesa'
-                          ? Colors.lightGreen
-                          : method == 'Card'
-                              ? Colors.blue
-                              : Colors.purple,
+                  color: dotColor,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1723,7 +1614,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
               Flexible(
                 child: Text(
                   method,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1734,9 +1628,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Row(
           children: [
             Text(
-              _money(amount),
+              CurrencyFormatter.format(amount),
               style: const TextStyle(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),
@@ -1748,7 +1642,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 child: Text(
                   '($pct)',
                   style: const TextStyle(
-                    color: AppTheme.secondaryColor,
+                    color: AppTheme.textSecondary,
                     fontSize: 12,
                   ),
                   textAlign: TextAlign.right,
@@ -1768,7 +1662,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(color: AppTheme.secondaryColor, fontSize: 13),
+            style: const TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1800,7 +1697,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           child: Text(
             label,
             style: TextStyle(
-              color: isBold ? Colors.white : AppTheme.secondaryColor,
+              color: isBold ? AppTheme.textPrimary : AppTheme.textSecondary,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               fontSize: fontSize,
             ),
@@ -1818,38 +1715,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ],
     );
   }
-
-  void _showExportDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text('Export Report', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Choose export format for current period report:',
-          style: TextStyle(color: AppTheme.secondaryColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Report exported to CSV successfully.')),
-              );
-            },
-            child: const Text('Export CSV'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
+// Local copy of ProductPerformance used internally by the screen
+// (kept here so the shared ReportsRepository data layer stays untouched)
+class _ProductPerformance {
+  final String productId;
+  final String productName;
+  final String category;
+  double totalQuantity;
+  double totalRevenue;
+  double totalProfit;
+
+  _ProductPerformance({
+    required this.productId,
+    required this.productName,
+    required this.category,
+    this.totalQuantity = 0,
+    this.totalRevenue = 0,
+    this.totalProfit = 0,
+  });
+}

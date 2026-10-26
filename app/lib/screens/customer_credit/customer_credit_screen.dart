@@ -5,6 +5,7 @@ import '../../models/customer_payment.dart';
 import '../../models/sale.dart';
 import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/currency_formatter.dart';
 import '../../utils/credit_balance.dart';
 import '../../utils/theme.dart';
 import '../../widgets/error_display_widgets.dart';
@@ -28,14 +29,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
 
   String _searchQuery = '';
 
-  String _money(double amount) {
-    final parts = amount.toStringAsFixed(2).split('.');
-    final integerPart = parts[0].replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
-    return 'KSh $integerPart.${parts[1]}';
-  }
+  String _money(double amount) => CurrencyFormatter.format(amount);
 
   /// Computes outstanding balance per customer based on ALL credit sales
   /// minus ALL repayments across all time.
@@ -59,7 +53,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
         title: Text(
           'Record Repayment from ${customer.customerName}',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppTheme.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -80,7 +74,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                 controller: amountController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.textPrimary),
                 decoration: const InputDecoration(
                   labelText: 'Repayment Amount (KSh)',
                   hintText: 'e.g. 2000',
@@ -89,7 +83,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: noteController,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.textPrimary),
                 decoration: const InputDecoration(
                   labelText: 'Note (Optional)',
                   hintText: 'e.g. Partial payment',
@@ -106,7 +100,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
+              foregroundColor: AppTheme.textPrimary,
             ),
             onPressed: () async {
               final amount =
@@ -115,7 +109,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Please enter a valid repayment amount.'),
-                    backgroundColor: Colors.red,
+                    backgroundColor: AppTheme.errorColor,
                   ),
                 );
                 return;
@@ -143,7 +137,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                     content: Text(
                       'Repayment of ${_money(amount)} recorded for ${customer.customerName}.',
                     ),
-                    backgroundColor: Colors.green,
+                    backgroundColor: AppTheme.successColor,
                   ),
                 );
               }
@@ -235,19 +229,20 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                     child: TextField(
                       onChanged: (val) =>
                           setState(() => _searchQuery = val),
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Search customer name or phone...',
                         hintStyle:
-                            const TextStyle(color: AppTheme.secondaryColor),
+                            TextStyle(color: AppTheme.textSecondary),
                         prefixIcon: const Icon(
                           Icons.search,
-                          color: AppTheme.secondaryColor,
+                          color: AppTheme.textSecondary,
+                          size: 20,
                         ),
                         filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        fillColor: AppTheme.cardBackground,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -281,33 +276,32 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                             itemBuilder: (context, index) {
                               final customer = balances[index];
                               return Card(
-                                color: Colors.white.withValues(alpha: 0.05),
+                                color: AppTheme.cardBackground,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                                   side: BorderSide(
-                                    color: AppTheme.secondaryColor
-                                        .withValues(alpha: 0.2),
+                                    color: AppTheme.borderColor,
                                   ),
                                 ),
                                 child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                                    horizontal: AppTheme.sp16,
+                                    vertical: AppTheme.sp8,
                                   ),
                                   leading: CircleAvatar(
                                     radius: 22,
                                     backgroundColor:
-                                        Colors.orange.withValues(alpha: 0.2),
+                                        AppTheme.warningColor.withValues(alpha: 0.2),
                                     child: const Icon(
                                       Icons.person,
-                                      color: Colors.orangeAccent,
+                                      color: AppTheme.highlightColor,
                                       size: 22,
                                     ),
                                   ),
                                   title: Text(
                                     customer.customerName,
                                     style: const TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.textPrimary,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
                                     ),
@@ -328,7 +322,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                                       Text(
                                         'Credit Sales: ${_money(customer.totalCreditSales)} • Repayments: ${_money(customer.totalRepayments)}',
                                         style: const TextStyle(
-                                          color: Colors.white70,
+                                          color: AppTheme.textSecondary,
                                           fontSize: 11,
                                         ),
                                       ),
@@ -344,8 +338,8 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                                         _money(customer.outstanding),
                                         style: TextStyle(
                                           color: customer.outstanding > 0
-                                              ? Colors.redAccent
-                                              : Colors.green,
+                                              ? AppTheme.errorColor
+                                              : AppTheme.successColor,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
                                         ),
@@ -355,8 +349,8 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                                         'Outstanding',
                                         style: TextStyle(
                                           color: customer.outstanding > 0
-                                              ? Colors.redAccent
-                                              : Colors.green,
+                                              ? AppTheme.errorColor
+                                              : AppTheme.successColor,
                                           fontSize: 10,
                                         ),
                                       ),
@@ -384,12 +378,10 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
         0, (sum, b) => sum + b.outstanding);
 
     return Card(
-      color: Colors.white.withValues(alpha: 0.03),
+      color: AppTheme.cardBackground,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-        ),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        side: BorderSide(color: AppTheme.borderColor),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -399,7 +391,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
             _buildSummaryMetric(
               'Customers in Debt',
               '${balances.length}',
-              Colors.redAccent,
+              AppTheme.errorColor,
             ),
             Container(
               width: 1,
@@ -408,7 +400,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
             _buildSummaryMetric(
               'Total Outstanding',
               _money(totalOutstanding),
-              Colors.orange,
+              AppTheme.warningColor,
             ),
           ],
         ),
@@ -465,7 +457,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
             Text(
               customer.customerName,
               style: const TextStyle(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -481,7 +473,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
             Text(
               'Outstanding: ${_money(customer.outstanding)}',
               style: const TextStyle(
-                color: Colors.redAccent,
+                color: AppTheme.errorColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -504,7 +496,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
               const Text(
                 'Credit Sales',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: AppTheme.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -523,7 +515,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                     title: Text(
                       '${sale.lineItems.length} item(s) • ${_money(sale.totalAmount)}',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 12,
                       ),
                     ),
@@ -545,7 +537,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
               const Text(
                 'Repayments',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: AppTheme.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -563,13 +555,13 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
                         const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
                     leading: const Icon(
                       Icons.arrow_downward,
-                      color: Colors.green,
+                      color: AppTheme.successColor,
                       size: 14,
                     ),
                     title: Text(
                       _money(payment.amount),
                       style: const TextStyle(
-                        color: Colors.green,
+                        color: AppTheme.successColor,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -596,4 +588,7 @@ class _CustomerCreditScreenState extends State<CustomerCreditScreen> {
     );
   }
 }
+
+
+
 

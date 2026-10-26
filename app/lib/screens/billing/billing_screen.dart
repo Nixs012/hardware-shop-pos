@@ -13,6 +13,7 @@ import '../../models/staff.dart';
 import '../../services/firestore_service.dart';
 import '../../services/printer_service.dart';
 import '../../services/sync_service.dart';
+import '../../utils/currency_formatter.dart';
 import '../../utils/mpesa_utils.dart';
 import '../../utils/theme.dart';
 import '../../widgets/error_display_widgets.dart';
@@ -83,11 +84,11 @@ class _BillingScreenState extends State<BillingScreen>
           backgroundColor: AppTheme.backgroundColor,
           title: const Text(
             'Out of Stock',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: AppTheme.textPrimary),
           ),
           content: Text(
             '${product.name} is out of stock. Add anyway?',
-            style: const TextStyle(color: Colors.white70),
+            style: const TextStyle(color: AppTheme.textSecondary),
           ),
           actions: [
             TextButton(
@@ -104,7 +105,7 @@ class _BillingScreenState extends State<BillingScreen>
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text(
                 'Override',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: AppTheme.textPrimary),
               ),
             ),
           ],
@@ -170,7 +171,7 @@ class _BillingScreenState extends State<BillingScreen>
           backgroundColor: AppTheme.backgroundColor,
           title: const Text(
             'Select Payment Method',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: AppTheme.textPrimary),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -252,13 +253,13 @@ class _BillingScreenState extends State<BillingScreen>
                     ? 'Sale Successful'
                     : 'Sale saved offline (queued for auto-sync)'),
             style: const TextStyle(
-              color: Colors.white,
+              color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           backgroundColor: hasOversold
-              ? Colors.orange
-              : (isOnline ? Colors.green : Colors.amber.shade800),
+               ? AppTheme.warningColor
+               : (isOnline ? AppTheme.successColor : AppTheme.warningColor),
           duration: const Duration(seconds: 4),
         ),
       );
@@ -269,7 +270,7 @@ class _BillingScreenState extends State<BillingScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.errorColor),
         );
       }
     }
@@ -308,7 +309,7 @@ class _BillingScreenState extends State<BillingScreen>
                 ? 'Printer disconnected or out of paper'
                 : 'Printer error: $error',
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppTheme.warningColor,
           action: SnackBarAction(
             label: 'Reconnect',
             onPressed: () => unawaited(_reconnectAndPrint(sale)),
@@ -325,7 +326,7 @@ class _BillingScreenState extends State<BillingScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Printer not connected. Pair it from Settings first.'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppTheme.warningColor,
         ),
       );
       return;
@@ -341,7 +342,7 @@ class _BillingScreenState extends State<BillingScreen>
             content: Text(
               'Receipt printing is only available on the Android app.',
             ),
-            backgroundColor: Colors.orange,
+            backgroundColor: AppTheme.warningColor,
           ),
         );
       }
@@ -389,7 +390,7 @@ class _BillingScreenState extends State<BillingScreen>
           backgroundColor: AppTheme.backgroundColor,
           title: const Text(
             'Enter Customer Details (Credit)',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -397,7 +398,7 @@ class _BillingScreenState extends State<BillingScreen>
               children: [
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimary),
                   decoration: const InputDecoration(
                     labelText: 'Customer Name',
                     hintText: 'e.g. John Kamau',
@@ -406,7 +407,7 @@ class _BillingScreenState extends State<BillingScreen>
                 const SizedBox(height: 16),
                 TextField(
                   controller: phoneController,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimary),
                   decoration: const InputDecoration(
                     labelText: 'Phone Number (Optional)',
                     hintText: 'e.g. 0712345678',
@@ -424,7 +425,7 @@ class _BillingScreenState extends State<BillingScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
+                foregroundColor: AppTheme.textPrimary,
               ),
               onPressed: () {
                 final name = nameController.text.trim();
@@ -517,7 +518,7 @@ class _BillingScreenState extends State<BillingScreen>
               backgroundColor: AppTheme.backgroundColor,
               title: const Text(
                 'M-Pesa Payment',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -525,7 +526,7 @@ class _BillingScreenState extends State<BillingScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Total: KSh ${_cartTotal.toStringAsFixed(2)}',
+                      'Total: ${CurrencyFormatter.format(_cartTotal)}',
                       style: const TextStyle(
                         color: AppTheme.primaryColor,
                         fontSize: 18,
@@ -537,7 +538,7 @@ class _BillingScreenState extends State<BillingScreen>
                       controller: controller,
                       autofocus: true,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         letterSpacing: 1.5,
                         fontWeight: FontWeight.bold,
                       ),
@@ -550,16 +551,16 @@ class _BillingScreenState extends State<BillingScreen>
                         labelText: 'M-Pesa transaction code',
                         hintText: 'e.g. QAB12CD34E',
                         labelStyle: const TextStyle(color: AppTheme.secondaryColor),
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        hintStyle: TextStyle(color: AppTheme.borderColor.withValues(alpha: 0.3)),
                         filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        fillColor: AppTheme.cardBackground,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
                         errorText: inlineError,
                         errorMaxLines: 2,
                         suffixIcon: isValid
-                            ? const Icon(Icons.check_circle, color: Colors.green)
+                            ? const Icon(Icons.check_circle, color: AppTheme.successColor)
                             : null,
                       ),
                       onChanged: onCodeChanged,
@@ -582,14 +583,14 @@ class _BillingScreenState extends State<BillingScreen>
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary,
                   ),
                   onPressed: (isValid && !isCheckingDuplicate) ? onCompleteSale : null,
                   child: isCheckingDuplicate
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textPrimary),
                         )
                       : const Text('Complete Sale'),
                 ),
@@ -612,12 +613,12 @@ class _BillingScreenState extends State<BillingScreen>
         backgroundColor: AppTheme.backgroundColor,
         title: const Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            Icon(Icons.warning_amber_rounded, color: AppTheme.warningColor, size: 28),
             SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Duplicate M-Pesa Code',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ),
           ],
@@ -627,19 +628,19 @@ class _BillingScreenState extends State<BillingScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This M-Pesa transaction code was already used on sale #$shortId at $saleDateStr for KSh ${earlierSale.totalAmount.toStringAsFixed(2)}.',
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              'This M-Pesa transaction code was already used on sale #$shortId at $saleDateStr for ${CurrencyFormatter.format(earlierSale.totalAmount)}.',
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
             ),
             const SizedBox(height: 12),
             if (isAdmin)
               const Text(
                 'As an admin, you can override this duplicate check and complete the sale anyway.',
-                style: TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppTheme.warningColor, fontSize: 13, fontWeight: FontWeight.bold),
               )
             else
               const Text(
                 'Cashiers cannot proceed with duplicate transaction codes. Please verify the code with the customer.',
-                style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppTheme.errorColor, fontSize: 13, fontWeight: FontWeight.bold),
               ),
           ],
         ),
@@ -651,8 +652,8 @@ class _BillingScreenState extends State<BillingScreen>
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
+                backgroundColor: AppTheme.warningColor,
+                foregroundColor: AppTheme.textPrimary,
               ),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Override & Complete'),
@@ -661,7 +662,7 @@ class _BillingScreenState extends State<BillingScreen>
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
+                foregroundColor: AppTheme.textPrimary,
               ),
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Close'),
@@ -678,7 +679,7 @@ class _BillingScreenState extends State<BillingScreen>
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.secondaryColor.withValues(alpha: 0.1),
-          foregroundColor: Colors.white,
+          foregroundColor: AppTheme.textPrimary,
           side: BorderSide(
             color: AppTheme.secondaryColor.withValues(alpha: 0.3),
           ),
@@ -733,7 +734,7 @@ class _BillingScreenState extends State<BillingScreen>
           padding: const EdgeInsets.all(16.0),
           child: TextField(
             controller: _searchController,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: AppTheme.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search products...',
               hintStyle: const TextStyle(color: AppTheme.secondaryColor),
@@ -742,7 +743,7 @@ class _BillingScreenState extends State<BillingScreen>
                 color: AppTheme.secondaryColor,
               ),
               filled: true,
-              fillColor: Colors.white.withValues(alpha: 0.05),
+              fillColor: AppTheme.cardBackground,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -815,14 +816,14 @@ class _BillingScreenState extends State<BillingScreen>
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: outOfStock
-                            ? Colors.red.withValues(alpha: 0.1)
-                            : Colors.white.withValues(alpha: 0.05),
+                            ? AppTheme.errorColor.withValues(alpha: 0.1)
+                            : AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: outOfStock
-                              ? Colors.red.withValues(alpha: 0.3)
+                              ? AppTheme.errorColor.withValues(alpha: 0.3)
                               : isLowStock
-                              ? Colors.orange.withValues(alpha: 0.5)
+                              ? AppTheme.warningColor.withValues(alpha: 0.5)
                               : AppTheme.secondaryColor.withValues(alpha: 0.2),
                         ),
                       ),
@@ -832,7 +833,7 @@ class _BillingScreenState extends State<BillingScreen>
                           Text(
                             product.name,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                             maxLines: 2,
@@ -840,7 +841,7 @@ class _BillingScreenState extends State<BillingScreen>
                           ),
                           const Spacer(),
                           Text(
-                            'KSh ${product.sellingPrice.toStringAsFixed(2)}',
+                            CurrencyFormatter.format(product.sellingPrice),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -854,9 +855,9 @@ class _BillingScreenState extends State<BillingScreen>
                             'Stock: ${product.quantityOnHand} ${product.unit}',
                             style: TextStyle(
                               color: outOfStock
-                                  ? Colors.red
+                                  ? AppTheme.errorColor
                                   : isLowStock
-                                  ? Colors.orange
+                                  ? AppTheme.warningColor
                                   : AppTheme.secondaryColor,
                               fontSize: 12,
                               fontWeight: outOfStock
@@ -913,15 +914,15 @@ class _BillingScreenState extends State<BillingScreen>
           ),
           child: Row(
             children: [
-              const Icon(Icons.shopping_cart, color: Colors.white70, size: 20),
+              const Icon(Icons.shopping_cart, color: AppTheme.textSecondary, size: 20),
               const SizedBox(width: 8),
               Text(
                 '$itemCount $itemLabel',
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
               ),
               const SizedBox(width: 8),
               const VerticalDivider(
-                color: Colors.white12,
+                color: AppTheme.borderColor,
                 width: 1,
                 indent: 8,
                 endIndent: 8,
@@ -929,7 +930,7 @@ class _BillingScreenState extends State<BillingScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'KSh ${_cartTotal.toStringAsFixed(2)}',
+                  '${CurrencyFormatter.format(_cartTotal)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
@@ -946,7 +947,7 @@ class _BillingScreenState extends State<BillingScreen>
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1048,7 +1049,7 @@ class _BillingScreenState extends State<BillingScreen>
                       const Text(
                         'Current Sale',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1066,7 +1067,7 @@ class _BillingScreenState extends State<BillingScreen>
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+                    icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.textPrimary),
                     onPressed: () => setState(() => _isCartExpanded = false),
                     tooltip: 'Collapse',
                   ),
@@ -1077,13 +1078,13 @@ class _BillingScreenState extends State<BillingScreen>
           Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.02),
+              color: AppTheme.cardBackground.withValues(alpha: 0.05),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.shopping_cart, color: Colors.white),
+                const Icon(Icons.shopping_cart, color: AppTheme.textPrimary),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -1091,7 +1092,7 @@ class _BillingScreenState extends State<BillingScreen>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1100,14 +1101,14 @@ class _BillingScreenState extends State<BillingScreen>
                 if (_cart.isNotEmpty)
                   IconButton(
                     icon: const Icon(Icons.delete_sweep,
-                        color: Colors.redAccent),
+                        color: AppTheme.errorColor),
                     onPressed: () => setState(() => _cart.clear()),
                     tooltip: 'Clear Cart',
                   ),
               ],
             ),
           ),
-        const Divider(height: 1, color: Colors.white12),
+        const Divider(height: 1, color: AppTheme.borderColor),
         Expanded(
           child: _cart.isEmpty
               ? const Center(
@@ -1120,7 +1121,7 @@ class _BillingScreenState extends State<BillingScreen>
                   padding: const EdgeInsets.all(8),
                   itemCount: _cart.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(color: Colors.white12),
+                      const Divider(color: AppTheme.borderColor),
                   itemBuilder: (context, index) {
                     final key = _cart.keys.elementAt(index);
                     final item = _cart[key]!;
@@ -1147,14 +1148,14 @@ class _BillingScreenState extends State<BillingScreen>
                               Text(
                                 product.name,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppTheme.textPrimary,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                'KSh ${item.unitPriceAtSale.toStringAsFixed(2)} each',
+                                '${CurrencyFormatter.format(item.unitPriceAtSale)} each',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -1179,7 +1180,7 @@ class _BillingScreenState extends State<BillingScreen>
                               child: Text(
                                 '${item.quantity}',
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppTheme.textPrimary,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 textAlign: TextAlign.center,
@@ -1197,7 +1198,7 @@ class _BillingScreenState extends State<BillingScreen>
                         SizedBox(
                           width: 96,
                           child: Text(
-                            'KSh ${(item.unitPriceAtSale * item.quantity).toStringAsFixed(2)}',
+                            '${CurrencyFormatter.format(item.unitPriceAtSale * item.quantity)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,
@@ -1214,7 +1215,7 @@ class _BillingScreenState extends State<BillingScreen>
         ),
         Container(
           padding: const EdgeInsets.all(16),
-          color: Colors.white.withValues(alpha: 0.05),
+          color: AppTheme.cardBackground,
           child: Column(
             children: [
               if (!kIsWeb)
@@ -1235,7 +1236,7 @@ class _BillingScreenState extends State<BillingScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1244,7 +1245,7 @@ class _BillingScreenState extends State<BillingScreen>
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
-                      'KSh ${_cartTotal.toStringAsFixed(2)}',
+                      '${CurrencyFormatter.format(_cartTotal)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
@@ -1264,7 +1265,7 @@ class _BillingScreenState extends State<BillingScreen>
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1287,3 +1288,6 @@ class _BillingScreenState extends State<BillingScreen>
   );
 }
 }
+
+
+

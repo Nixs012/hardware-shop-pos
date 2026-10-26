@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/staff.dart';
 import '../../models/product.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/currency_formatter.dart';
 import '../../utils/theme.dart';
 import '../../widgets/error_display_widgets.dart';
 import 'product_form_screen.dart';
@@ -121,13 +122,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
       floatingActionButton: _isAdmin
           ? FloatingActionButton.extended(
               backgroundColor: AppTheme.primaryColor,
-              onPressed: () {
+               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => ProductFormScreen(firestoreService: _firestoreService)),
                 );
               },
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Add Product', style: TextStyle(color: Colors.white)),
+              icon: const Icon(Icons.add, color: AppTheme.textPrimary),
+              label: const Text('Add Product', style: TextStyle(color: AppTheme.textPrimary)),
             )
           : null,
     );
@@ -140,11 +141,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
         vertical: 12,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
+        color: AppTheme.cardBackground,
         border: Border(
-          bottom: BorderSide(
-            color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-          ),
+          bottom: BorderSide(color: AppTheme.borderColor),
         ),
       ),
       child: isDesktop
@@ -154,7 +153,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   flex: 3,
                   child: TextField(
                     controller: _searchController,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                     decoration: InputDecoration(
                       hintText: 'Search products by name or SKU...',
                       hintStyle:
@@ -166,19 +165,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       ),
                       isDense: true,
                       filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.05),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                       fillColor: AppTheme.cardBackground,
+                       border: OutlineInputBorder(
+                         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                         borderSide: BorderSide.none,
+                       ),
+                     ),
+                   ),
+                 ),
+                 const SizedBox(width: 16),
+                 Container(
+                   padding: const EdgeInsets.symmetric(horizontal: AppTheme.sp12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: AppTheme.cardBackground,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -187,7 +186,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ? _selectedCategory
                           : 'All',
                       dropdownColor: AppTheme.backgroundColor,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: TextStyle(color: AppTheme.textPrimary, fontSize: 13),
                       items: categories.map((cat) {
                         return DropdownMenuItem(
                           value: cat,
@@ -205,10 +204,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   label: const Text('Low Stock Only'),
                   selected: _onlyLowStock,
                   onSelected: (val) => setState(() => _onlyLowStock = val),
-                  selectedColor: Colors.orange.withValues(alpha: 0.25),
-                  checkmarkColor: Colors.orange,
+                  selectedColor: AppTheme.warningColor.withValues(alpha: 0.25),
+                  checkmarkColor: AppTheme.warningColor,
                   labelStyle: TextStyle(
-                    color: _onlyLowStock ? Colors.orange : Colors.white70,
+                    color: _onlyLowStock ? AppTheme.warningColor : AppTheme.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -218,7 +217,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               children: [
                 TextField(
                   controller: _searchController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search products...',
                     hintStyle:
@@ -229,7 +228,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                     isDense: true,
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    fillColor: AppTheme.cardBackground,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -243,7 +242,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: AppTheme.cardBackground,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: DropdownButtonHideUnderline(
@@ -253,8 +252,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 ? _selectedCategory
                                 : 'All',
                             dropdownColor: AppTheme.backgroundColor,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppTheme.textPrimary,
                               fontSize: 13,
                             ),
                             items: categories.map((cat) {
@@ -277,10 +276,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       label: const Text('Low Stock'),
                       selected: _onlyLowStock,
                       onSelected: (val) => setState(() => _onlyLowStock = val),
-                      selectedColor: Colors.orange.withValues(alpha: 0.25),
-                      checkmarkColor: Colors.orange,
+                      selectedColor: AppTheme.warningColor.withValues(alpha: 0.25),
+                      checkmarkColor: AppTheme.warningColor,
                       labelStyle: TextStyle(
-                        color: _onlyLowStock ? Colors.orange : Colors.white70,
+                        color: _onlyLowStock ? AppTheme.warningColor : AppTheme.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -296,11 +295,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
       padding: const EdgeInsets.all(24.0),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppTheme.secondaryColor.withValues(alpha: 0.15),
-          ),
+          color: AppTheme.cardBackground,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+          border: Border.all(color: AppTheme.borderColor),
         ),
         child: SizedBox(
           width: double.infinity,
@@ -308,7 +305,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             horizontalMargin: 20,
             columnSpacing: 24,
             headingRowColor: WidgetStateProperty.all(
-              Colors.white.withValues(alpha: 0.05),
+              AppTheme.elevatedBackground,
             ),
             columns: [
               const DataColumn(label: Text('Product & SKU', style: _headerStyle)),
@@ -337,12 +334,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   DataCell(
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
                           product.name,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppTheme.textPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -360,7 +357,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   DataCell(
                     Text(
                       product.category.isEmpty ? '-' : product.category,
-                      style: const TextStyle(color: Colors.white70),
+                      style: TextStyle(color: AppTheme.textSecondary),
                     ),
                   ),
                   DataCell(
@@ -374,48 +371,48 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: isOut
-                                  ? Colors.redAccent
+                                  ? AppTheme.errorColor
                                   : isLow
-                                      ? Colors.orange
-                                      : Colors.white,
+                                      ? AppTheme.warningColor
+                                      : AppTheme.textPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         if (isOut)
-                          _buildBadge('OUT OF STOCK', Colors.red)
+                          _buildBadge('OUT OF STOCK', AppTheme.errorColor)
                         else if (isLow)
-                          _buildBadge('LOW STOCK', Colors.orange),
+                          _buildBadge('LOW STOCK', AppTheme.warningColor),
                       ],
                     ),
                   ),
                   DataCell(
                     Text(
-                      'KSh ${product.sellingPrice.toStringAsFixed(2)}',
+                      CurrencyFormatter.format(product.sellingPrice),
                       style: const TextStyle(
                         color: AppTheme.primaryColor,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  if (_isAdmin)
+                   if (_isAdmin)
                     DataCell(
                       Text(
-                        'KSh ${product.costPrice.toStringAsFixed(2)}',
+                        CurrencyFormatter.format(product.costPrice),
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: AppTheme.textSecondary,
                         ),
                       ),
                     ),
-                  if (_isAdmin)
+                   if (_isAdmin)
                     DataCell(
                       Text(
                         '$margin%',
                         style: TextStyle(
                           color: double.parse(margin) >= 20
-                              ? Colors.green
-                              : Colors.orange,
+                              ? AppTheme.successColor
+                              : AppTheme.warningColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -425,13 +422,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.edit,
-                              size: 18,
-                              color: Colors.blue,
-                            ),
-                            tooltip: 'Edit Product',
+                           IconButton(
+                             icon: const Icon(
+                               Icons.edit,
+                               size: 18,
+                               color: AppTheme.highlightColor,
+                             ),
+                             tooltip: 'Edit Product',
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
@@ -463,7 +460,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   static const _headerStyle = TextStyle(
-    color: Colors.white,
+    color: AppTheme.textPrimary,
     fontWeight: FontWeight.bold,
     fontSize: 13,
   );
@@ -496,21 +493,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
         final isLowStock = product.quantityOnHand <= product.lowStockThreshold;
 
         return Card(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: AppTheme.cardBackground,
           margin: const EdgeInsets.only(bottom: 12.0),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             side: BorderSide(
               color: isLowStock
-                  ? Colors.orange.withValues(alpha: 0.5)
-                  : Colors.transparent,
+                  ? AppTheme.warningColor.withValues(alpha: 0.5)
+                  : AppTheme.borderColor,
               width: 1,
             ),
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
+              horizontal: AppTheme.sp16,
+              vertical: AppTheme.sp8,
             ),
             title: Row(
               children: [
@@ -520,7 +517,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -530,7 +527,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   const SizedBox(width: 8),
                   const Icon(
                     Icons.warning_amber_rounded,
-                    color: Colors.orange,
+                    color: AppTheme.warningColor,
                     size: 20,
                   ),
                 ],
@@ -543,14 +540,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 children: [
                   Text(
                     'Category: ${product.category}  •  Stock: ${product.quantityOnHand} ${product.unit}',
-                    style: const TextStyle(color: AppTheme.secondaryColor),
+                    style: TextStyle(color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          'Price: KSh ${product.sellingPrice.toStringAsFixed(2)}',
+                          'Price: ${CurrencyFormatter.format(product.sellingPrice)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -563,11 +560,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         const SizedBox(width: 16),
                         Flexible(
                           child: Text(
-                            'Cost: KSh ${product.costPrice.toStringAsFixed(2)}',
+                            'Cost: ${CurrencyFormatter.format(product.costPrice)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: AppTheme.textSecondary,
                             ),
                           ),
                         ),
@@ -584,15 +581,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       IconButton(
                         icon: const Icon(
                           Icons.edit,
-                          color: AppTheme.secondaryColor,
+                          color: AppTheme.highlightColor,
                           size: 20,
                         ),
                         tooltip: 'Edit Product',
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  ProductFormScreen(existingProduct: product, firestoreService: _firestoreService),
+                              builder: (_) => ProductFormScreen(
+                                  existingProduct: product, firestoreService: _firestoreService),
                             ),
                           );
                         },
@@ -600,7 +597,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline,
-                          color: Colors.redAccent,
+                          color: AppTheme.errorColor,
                           size: 20,
                         ),
                         tooltip: 'Delete Product',
@@ -631,18 +628,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.backgroundColor,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           side: BorderSide(
             color: AppTheme.secondaryColor.withValues(alpha: 0.2),
           ),
         ),
         title: const Text(
           'Delete Product',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Delete ${product.name}? This cannot be undone.',
-          style: const TextStyle(color: Colors.white70),
+          style: TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
@@ -655,7 +652,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
+              foregroundColor: AppTheme.textPrimary,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
@@ -686,3 +683,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 }
+
+
+

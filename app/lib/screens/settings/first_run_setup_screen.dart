@@ -54,7 +54,7 @@ class _FirstRunSetupScreenState extends State<FirstRunSetupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Shop name is required.'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.errorColor,
         ),
       );
       return;
@@ -83,7 +83,7 @@ class _FirstRunSetupScreenState extends State<FirstRunSetupScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Save failed: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorColor,
           ),
         );
       }
@@ -132,8 +132,7 @@ class _FirstRunSetupScreenState extends State<FirstRunSetupScreen> {
                     Text(
                       'Welcome to Shamamo POS',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
+style: TextStyle(color: AppTheme.textPrimary,
                         fontSize: screenHeight < 500 ? 22 : 26,
                         fontWeight: FontWeight.bold,
                       ),
@@ -208,12 +207,10 @@ class _FirstRunSetupScreenState extends State<FirstRunSetupScreen> {
                         ? const Center(child: CircularProgressIndicator())
                         : ElevatedButton.icon(
                             onPressed: _saveSetup,
-                            icon: const Icon(Icons.check, color: Colors.white),
+                            icon: const Icon(Icons.check, color: AppTheme.textPrimary),
                             label: const Text(
                               'Complete Setup',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                              style: TextStyle(color: AppTheme.textPrimary,                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
                               ),
                             ),
@@ -246,7 +243,7 @@ class _FirstRunSetupScreenState extends State<FirstRunSetupScreen> {
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppTheme.textPrimary),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -266,3 +263,6 @@ class _FirstRunSetupScreenState extends State<FirstRunSetupScreen> {
     );
   }
 }
+
+
+
