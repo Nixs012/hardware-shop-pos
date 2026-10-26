@@ -456,7 +456,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
           childAspectRatio: 2.8,
           crossAxisSpacing: 16,
@@ -1139,9 +1139,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Period segmented control
+                  // Period segmented control - equal-width segments, 360px
                   SizedBox(
-                    width: 240,
+                    width: 360,
                     child: SegmentedPeriodControl(
                       selectedIndex: _selectedPeriodIndex,
                       onSelect: (index) {
@@ -1212,7 +1212,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               );
             }
 
-            // Mobile: period control full width, pills scroll horizontally
+            // Mobile: period control full width, pills on wrapping layout
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1233,59 +1233,55 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   customRange: _customDateRange,
                 ),
                 const SizedBox(height: 12),
-                // Horizontal-scrolling pills
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      if (_isAdmin && _staffStream != null)
-                        SizedBox(
-                          width: 160,
-                          child: _buildStaffPill(),
-                        ),
-                      if (_isAdmin && _staffStream != null) const SizedBox(width: 12),
+                // Wrapping pills - Staff, Category, Payment Method, Reset
+                Wrap(
+                  spacing: AppTheme.sp12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (_isAdmin && _staffStream != null)
+                      SizedBox(
+                        width: 160,
+                        child: _buildStaffPill(),
+                      ),
+                    SizedBox(
+                      width: 160,
+                      child: FilterPill(
+                        label: 'Category',
+                        value: _selectedCategory,
+                        icon: Icons.category_outlined,
+                        items: ['All', ...categories.where((c) => c.isNotEmpty).toSet()],
+                        onSelect: (val) => setState(() => _selectedCategory = val),
+                      ),
+                    ),
+                    if (_isAdmin)
                       SizedBox(
                         width: 160,
                         child: FilterPill(
-                          label: 'Category',
-                          value: _selectedCategory,
-                          icon: Icons.category_outlined,
-                          items: ['All', ...categories.where((c) => c.isNotEmpty).toSet()],
-                          onSelect: (val) => setState(() => _selectedCategory = val),
+                          label: 'Payment',
+                          value: _selectedPaymentMethod,
+                          icon: Icons.payments_outlined,
+                          items: const ['All', 'Cash', 'M-Pesa', 'Credit'],
+                          onSelect: (val) => setState(() => _selectedPaymentMethod = val),
                         ),
                       ),
-                      if (_isAdmin) ...[
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 160,
-                          child: FilterPill(
-                            label: 'Payment',
-                            value: _selectedPaymentMethod,
-                            icon: Icons.payments_outlined,
-                            items: const ['All', 'Cash', 'M-Pesa', 'Credit'],
-                            onSelect: (val) => setState(() => _selectedPaymentMethod = val),
+                    SizedBox(
+                      height: 40,
+                      child: OutlinedButton.icon(
+                        onPressed: _resetFilters,
+                        icon: const Icon(Icons.refresh, size: 14),
+                        label: const Text('Reset'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.textSecondary,
+                          side: BorderSide(color: AppTheme.borderColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                           ),
-                        ),
-                      ],
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        height: 40,
-                        child: OutlinedButton.icon(
-                          onPressed: _resetFilters,
-                          icon: const Icon(Icons.refresh, size: 14),
-                          label: const Text('Reset'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.textSecondary,
-                            side: BorderSide(color: AppTheme.borderColor),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                            ),
-                            textStyle: const TextStyle(fontSize: 12),
-                          ),
+                          textStyle: const TextStyle(fontSize: 12),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             );

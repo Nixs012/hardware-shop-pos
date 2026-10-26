@@ -124,22 +124,22 @@ class _SalesTrendPainter extends CustomPainter {
 
     final textStyleAxis = TextStyle(
       color: AppTheme.textSecondary,
-      fontSize: 10,
+      fontSize: 11,
     );
 
     final textStyleLabel = TextStyle(
       color: AppTheme.textPrimary,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: FontWeight.w600,
     );
 
     final maxCount = points.map((p) => p.value).fold<double>(0, (a, b) => a > b ? a : b);
     final maxVal = maxCount > 0 ? maxCount : 1.0;
 
-    final plotLeft = 40.0;
+    final plotLeft = 48.0;
     final plotRight = 16.0;
-    final plotTop = 16.0;
-    final plotBottom = 28.0;
+    final plotTop = 20.0;
+    final plotBottom = 32.0;
 
     final plotWidth = size.width - plotLeft - plotRight;
     final plotHeight = size.height - plotTop - plotBottom;
@@ -157,9 +157,10 @@ class _SalesTrendPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(text: CurrencyFormatter.format(val), style: textStyleAxis),
         textDirection: TextDirection.ltr,
+        textAlign: TextAlign.right,
       );
       tp.layout();
-      tp.paint(canvas, Offset(4, y - tp.height / 2));
+      tp.paint(canvas, Offset(plotLeft - tp.width - 8, y - tp.height / 2));
     }
 
     if (points.length < 2) {
@@ -229,7 +230,8 @@ class _SalesTrendPainter extends CustomPainter {
         );
         ttp.layout();
         final tx = p.dx - ttp.width / 2;
-        final ty = p.dy - 24;
+        // Position tooltip above the point, but clamp to chart bounds
+        final ty = (p.dy - ttp.height - 16).clamp(plotTop + 4, plotTop + plotHeight - ttp.height - 4);
         final bgRect = Rect.fromLTWH(
           tx - 6,
           ty - 4,
