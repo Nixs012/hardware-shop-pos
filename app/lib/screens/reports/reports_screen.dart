@@ -187,6 +187,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           bottom: TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
+            dividerColor: AppTheme.borderColor,
             indicator: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
