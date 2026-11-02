@@ -1733,16 +1733,13 @@ class _ProductPerformance {
   final String productId;
   final String productName;
   final String category;
-  double totalQuantity;
-  double totalRevenue;
-  double totalProfit;
+  double totalQuantity = 0;
+  double totalRevenue = 0;
+  double totalProfit = 0;
 
   _ProductPerformance({
     required this.productId,
     required this.productName,
     required this.category,
-    this.totalQuantity = 0,
-    this.totalRevenue = 0,
-    this.totalProfit = 0,
   });
 }

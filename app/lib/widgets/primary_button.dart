@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../utils/theme.dart';
 
 /// Premium shared button system — reusable across the entire POS app.
@@ -175,7 +176,9 @@ class PrimaryButton extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: bg.withValues(alpha: opacity),
               foregroundColor: fg,
-              disabledBackgroundColor: AppTheme.borderColor.withValues(alpha: 0.3),
+              disabledBackgroundColor: AppTheme.borderColor.withValues(
+                alpha: 0.3,
+              ),
               disabledForegroundColor: AppTheme.textSecondary,
               padding: padding,
               minimumSize: const Size(44, 44),
@@ -183,34 +186,26 @@ class PrimaryButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(radius),
                 side: BorderSide(color: border ?? Colors.transparent, width: 1),
               ),
-              animationDuration: useAnimations ? const Duration(milliseconds: 150) : Duration.zero,
+              animationDuration: useAnimations
+                  ? const Duration(milliseconds: 150)
+                  : Duration.zero,
             ),
             child: child,
           );
 
     // Wrap with tooltip if specified (for non-icon variants)
     if (tooltip != null && _variant != _PrimaryVariant.icon) {
-      button = Tooltip(
-        message: tooltip!,
-        child: button,
-      );
+      button = Tooltip(message: tooltip!, child: button);
     }
 
     // Apply width constraint
     if (width != null && _variant != _PrimaryVariant.icon) {
-      button = SizedBox(
-        width: width,
-        child: button,
-      );
+      button = SizedBox(width: width, child: button);
     }
 
     // Icon-only variant gets semantics
     if (_variant == _PrimaryVariant.icon) {
-      return Semantics(
-        label: semanticsLabel,
-        button: true,
-        child: button,
-      );
+      return Semantics(label: semanticsLabel, button: true, child: button);
     }
     return button;
   }
@@ -223,15 +218,9 @@ class PrimaryButton extends StatelessWidget {
           SizedBox(
             width: fontSize,
             height: fontSize,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: fg,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: fg),
           ),
-          if (label != null) ...[
-            const SizedBox(width: 8),
-            Text(label!),
-          ],
+          if (label != null) ...[const SizedBox(width: 8), Text(label!)],
         ],
       );
     }
@@ -259,11 +248,7 @@ class PrimaryButton extends StatelessWidget {
 class _HoverWatcher extends InheritedWidget {
   final bool isHovering;
 
-  const _HoverWatcher({
-    super.key,
-    required this.isHovering,
-    required super.child,
-  });
+  const _HoverWatcher({required this.isHovering, required super.child});
 
   static _HoverWatcher? of(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<_HoverWatcher>();
@@ -275,7 +260,7 @@ class _HoverWatcher extends InheritedWidget {
 
 class _HoverWatcherHost extends StatefulWidget {
   final Widget child;
-  const _HoverWatcherHost({super.key, required this.child});
+  const _HoverWatcherHost({required this.child});
 
   @override
   State<_HoverWatcherHost> createState() => _HoverWatcherHostState();
@@ -290,18 +275,9 @@ class _HoverWatcherHostState extends State<_HoverWatcherHost> {
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => isHovering = true),
       onExit: (_) => setState(() => isHovering = false),
-      child: _HoverWatcher(
-        isHovering: isHovering,
-        child: widget.child,
-      ),
+      child: _HoverWatcher(isHovering: isHovering, child: widget.child),
     );
   }
 }
 
-enum _PrimaryVariant {
-  primary,
-  secondary,
-  outline,
-  icon,
-  destructive,
-}
+enum _PrimaryVariant { primary, secondary, outline, icon, destructive }

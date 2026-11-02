@@ -17,13 +17,18 @@ import '../../utils/currency_formatter.dart';
 import '../../utils/mpesa_utils.dart';
 import '../../utils/theme.dart';
 import '../../widgets/error_display_widgets.dart';
+
 import 'package:flutter/services.dart';
 
 class BillingScreen extends StatefulWidget {
   final Staff currentStaff;
   final FirestoreService? firestoreService;
 
-  const BillingScreen({super.key, required this.currentStaff, this.firestoreService});
+  const BillingScreen({
+    super.key,
+    required this.currentStaff,
+    this.firestoreService,
+  });
 
   @override
   State<BillingScreen> createState() => _BillingScreenState();
@@ -50,7 +55,8 @@ class _BillingScreenState extends State<BillingScreen>
   @override
   void initState() {
     super.initState();
-    _firestoreService = widget.firestoreService ??
+    _firestoreService =
+        widget.firestoreService ??
         FirestoreServiceImpl(widget.currentStaff.shopId);
     _searchController.addListener(() {
       setState(() {
@@ -229,10 +235,7 @@ class _BillingScreenState extends State<BillingScreen>
       );
 
       final bool isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
-      await _firestoreService.processSale(
-        sale,
-        includeCostSnapshot: isAdmin,
-      );
+      await _firestoreService.processSale(sale, includeCostSnapshot: isAdmin);
 
       if (!mounted) {
         return;
@@ -250,16 +253,16 @@ class _BillingScreenState extends State<BillingScreen>
             hasOversold
                 ? 'Sale Complete! Warning: Some items were oversold.'
                 : (isOnline
-                    ? 'Sale Successful'
-                    : 'Sale saved offline (queued for auto-sync)'),
+                      ? 'Sale Successful'
+                      : 'Sale saved offline (queued for auto-sync)'),
             style: const TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           backgroundColor: hasOversold
-               ? AppTheme.warningColor
-               : (isOnline ? AppTheme.successColor : AppTheme.warningColor),
+              ? AppTheme.warningColor
+              : (isOnline ? AppTheme.successColor : AppTheme.warningColor),
           duration: const Duration(seconds: 4),
         ),
       );
@@ -270,7 +273,10 @@ class _BillingScreenState extends State<BillingScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.errorColor),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       }
     }
@@ -305,7 +311,7 @@ class _BillingScreenState extends State<BillingScreen>
             error.toString().contains('not connected')
                 ? 'Printer not connected'
                 : error.toString().contains('PrinterWriteException') ||
-                    error.toString().contains('PrinterConnectionException')
+                      error.toString().contains('PrinterConnectionException')
                 ? 'Printer disconnected or out of paper'
                 : 'Printer error: $error',
           ),
@@ -351,9 +357,7 @@ class _BillingScreenState extends State<BillingScreen>
     try {
       final sale =
           _lastCompletedSale ??
-          await _firestoreService.getLatestSale(
-            staffId: _cashierQueryId,
-          );
+          await _firestoreService.getLatestSale(staffId: _cashierQueryId);
       if (sale == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -390,7 +394,10 @@ class _BillingScreenState extends State<BillingScreen>
           backgroundColor: AppTheme.backgroundColor,
           title: const Text(
             'Enter Customer Details (Credit)',
-            style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -430,13 +437,10 @@ class _BillingScreenState extends State<BillingScreen>
               onPressed: () {
                 final name = nameController.text.trim();
                 if (name.isEmpty) return;
-                Navigator.pop(
-                  dialogCtx,
-                  {
-                    'name': name,
-                    'phone': phoneController.text.trim(),
-                  },
-                );
+                Navigator.pop(dialogCtx, {
+                  'name': name,
+                  'phone': phoneController.text.trim(),
+                });
               },
               child: const Text('Confirm Credit Sale'),
             ),
@@ -489,10 +493,15 @@ class _BillingScreenState extends State<BillingScreen>
               });
 
               try {
-                final duplicateSale = await _firestoreService.findSaleByMpesaCode(code);
+                final duplicateSale = await _firestoreService
+                    .findSaleByMpesaCode(code);
                 if (duplicateSale != null && mounted) {
-                  final isAdmin = widget.currentStaff.role.toLowerCase() == 'admin';
-                  final override = await _showDuplicateWarningDialog(duplicateSale, isAdmin: isAdmin);
+                  final isAdmin =
+                      widget.currentStaff.role.toLowerCase() == 'admin';
+                  final override = await _showDuplicateWarningDialog(
+                    duplicateSale,
+                    isAdmin: isAdmin,
+                  );
                   if (override != true) {
                     setDialogState(() {
                       isCheckingDuplicate = false;
@@ -518,7 +527,10 @@ class _BillingScreenState extends State<BillingScreen>
               backgroundColor: AppTheme.backgroundColor,
               title: const Text(
                 'M-Pesa Payment',
-                style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -544,14 +556,20 @@ class _BillingScreenState extends State<BillingScreen>
                       ),
                       textCapitalization: TextCapitalization.characters,
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z0-9]'),
+                        ),
                         LengthLimitingTextInputFormatter(10),
                       ],
                       decoration: InputDecoration(
                         labelText: 'M-Pesa transaction code',
                         hintText: 'e.g. QAB12CD34E',
-                        labelStyle: const TextStyle(color: AppTheme.secondaryColor),
-                        hintStyle: TextStyle(color: AppTheme.borderColor.withValues(alpha: 0.3)),
+                        labelStyle: const TextStyle(
+                          color: AppTheme.secondaryColor,
+                        ),
+                        hintStyle: TextStyle(
+                          color: AppTheme.borderColor.withValues(alpha: 0.3),
+                        ),
                         filled: true,
                         fillColor: AppTheme.cardBackground,
                         border: OutlineInputBorder(
@@ -560,7 +578,10 @@ class _BillingScreenState extends State<BillingScreen>
                         errorText: inlineError,
                         errorMaxLines: 2,
                         suffixIcon: isValid
-                            ? const Icon(Icons.check_circle, color: AppTheme.successColor)
+                            ? const Icon(
+                                Icons.check_circle,
+                                color: AppTheme.successColor,
+                              )
                             : null,
                       ),
                       onChanged: onCodeChanged,
@@ -569,7 +590,10 @@ class _BillingScreenState extends State<BillingScreen>
                       const SizedBox(height: 8),
                       const Text(
                         'Enter 10-character code (letters and digits only)',
-                        style: TextStyle(color: AppTheme.secondaryColor, fontSize: 12),
+                        style: TextStyle(
+                          color: AppTheme.secondaryColor,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ],
@@ -577,7 +601,9 @@ class _BillingScreenState extends State<BillingScreen>
               ),
               actions: [
                 TextButton(
-                  onPressed: isCheckingDuplicate ? null : () => Navigator.pop(dialogCtx, null),
+                  onPressed: isCheckingDuplicate
+                      ? null
+                      : () => Navigator.pop(dialogCtx, null),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -585,12 +611,17 @@ class _BillingScreenState extends State<BillingScreen>
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: AppTheme.textPrimary,
                   ),
-                  onPressed: (isValid && !isCheckingDuplicate) ? onCompleteSale : null,
+                  onPressed: (isValid && !isCheckingDuplicate)
+                      ? onCompleteSale
+                      : null,
                   child: isCheckingDuplicate
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textPrimary),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.textPrimary,
+                          ),
                         )
                       : const Text('Complete Sale'),
                 ),
@@ -602,74 +633,102 @@ class _BillingScreenState extends State<BillingScreen>
     );
   }
 
-  Future<bool> _showDuplicateWarningDialog(Sale earlierSale, {required bool isAdmin}) async {
-    final saleDateStr = earlierSale.timestamp.toLocal().toString().substring(0, 16);
-    final shortId = earlierSale.id.length > 8 ? earlierSale.id.substring(0, 8) : earlierSale.id;
+  Future<bool> _showDuplicateWarningDialog(
+    Sale earlierSale, {
+    required bool isAdmin,
+  }) async {
+    final saleDateStr = earlierSale.timestamp.toLocal().toString().substring(
+      0,
+      16,
+    );
+    final shortId = earlierSale.id.length > 8
+        ? earlierSale.id.substring(0, 8)
+        : earlierSale.id;
 
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.backgroundColor,
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: AppTheme.warningColor, size: 28),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Duplicate M-Pesa Code',
-                style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
-              ),
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppTheme.backgroundColor,
+            title: const Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppTheme.warningColor,
+                  size: 28,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Duplicate M-Pesa Code',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This M-Pesa transaction code was already used on sale #$shortId at $saleDateStr for ${CurrencyFormatter.format(earlierSale.totalAmount)}.',
-              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This M-Pesa transaction code was already used on sale #$shortId at $saleDateStr for ${CurrencyFormatter.format(earlierSale.totalAmount)}.',
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (isAdmin)
+                  const Text(
+                    'As an admin, you can override this duplicate check and complete the sale anyway.',
+                    style: TextStyle(
+                      color: AppTheme.warningColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                else
+                  const Text(
+                    'Cashiers cannot proceed with duplicate transaction codes. Please verify the code with the customer.',
+                    style: TextStyle(
+                      color: AppTheme.errorColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            if (isAdmin)
-              const Text(
-                'As an admin, you can override this duplicate check and complete the sale anyway.',
-                style: TextStyle(color: AppTheme.warningColor, fontSize: 13, fontWeight: FontWeight.bold),
-              )
-            else
-              const Text(
-                'Cashiers cannot proceed with duplicate transaction codes. Please verify the code with the customer.',
-                style: TextStyle(color: AppTheme.errorColor, fontSize: 13, fontWeight: FontWeight.bold),
-              ),
-          ],
-        ),
-        actions: [
-          if (isAdmin) ...[
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.warningColor,
-                foregroundColor: AppTheme.textPrimary,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Override & Complete'),
-            ),
-          ] else
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: AppTheme.textPrimary,
-              ),
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Close'),
-            ),
-        ],
-      ),
-    ) ?? false;
+            actions: [
+              if (isAdmin) ...[
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.warningColor,
+                    foregroundColor: AppTheme.textPrimary,
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Override & Complete'),
+                ),
+              ] else
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: AppTheme.textPrimary,
+                  ),
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Close'),
+                ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   Widget _paymentButton(BuildContext context, String method) {
@@ -700,7 +759,10 @@ class _BillingScreenState extends State<BillingScreen>
       // Desktop: sidebar layout with fixed cart
       return Row(
         children: [
-          Expanded(flex: 5, child: _buildCatalog(isCartVisible: _cart.isNotEmpty)),
+          Expanded(
+            flex: 5,
+            child: _buildCatalog(isCartVisible: _cart.isNotEmpty),
+          ),
           Container(
             width: 1,
             color: AppTheme.secondaryColor.withValues(alpha: 0.3),
@@ -903,9 +965,7 @@ class _BillingScreenState extends State<BillingScreen>
                 offset: const Offset(0, -5),
               ),
             ],
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(16),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             border: Border(
               top: BorderSide(
                 color: AppTheme.secondaryColor.withValues(alpha: 0.3),
@@ -914,11 +974,18 @@ class _BillingScreenState extends State<BillingScreen>
           ),
           child: Row(
             children: [
-              const Icon(Icons.shopping_cart, color: AppTheme.textSecondary, size: 20),
+              const Icon(
+                Icons.shopping_cart,
+                color: AppTheme.textSecondary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 '$itemCount $itemLabel',
-                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 14,
+                ),
               ),
               const SizedBox(width: 8),
               const VerticalDivider(
@@ -930,7 +997,7 @@ class _BillingScreenState extends State<BillingScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${CurrencyFormatter.format(_cartTotal)}',
+                  CurrencyFormatter.format(_cartTotal),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
@@ -956,10 +1023,7 @@ class _BillingScreenState extends State<BillingScreen>
                   onPressed: _cart.isEmpty ? null : _checkout,
                   child: const Text(
                     'Complete Sale',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -974,7 +1038,10 @@ class _BillingScreenState extends State<BillingScreen>
   /// bar to the fully expanded state. Uses a drag gesture detector.
   Widget _buildDraggableCart(BuildContext context, double maxCartHeight) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final effectiveHeight = math.min(maxCartHeight, screenHeight * _maxCartExpandRatio);
+    final effectiveHeight = math.min(
+      maxCartHeight,
+      screenHeight * _maxCartExpandRatio,
+    );
 
     return Positioned(
       bottom: 0,
@@ -1001,9 +1068,7 @@ class _BillingScreenState extends State<BillingScreen>
                 offset: const Offset(0, -5),
               ),
             ],
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(16),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             border: Border(
               top: BorderSide(
                 color: AppTheme.secondaryColor.withValues(alpha: 0.3),
@@ -1067,227 +1132,232 @@ class _BillingScreenState extends State<BillingScreen>
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down, color: AppTheme.textPrimary),
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down,
+                      color: AppTheme.textPrimary,
+                    ),
                     onPressed: () => setState(() => _isCartExpanded = false),
                     tooltip: 'Collapse',
                   ),
                 ],
               ),
             )
-        else if (isDesktop)
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: AppTheme.cardBackground.withValues(alpha: 0.05),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.shopping_cart, color: AppTheme.textPrimary),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Current Sale',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+          else if (isDesktop)
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: AppTheme.cardBackground.withValues(alpha: 0.05),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
                 ),
-                if (_cart.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.delete_sweep,
-                        color: AppTheme.errorColor),
-                    onPressed: () => setState(() => _cart.clear()),
-                    tooltip: 'Clear Cart',
-                  ),
-              ],
-            ),
-          ),
-        const Divider(height: 1, color: AppTheme.borderColor),
-        Expanded(
-          child: _cart.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Cart is empty',
-                    style: TextStyle(color: AppTheme.secondaryColor),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: _cart.length,
-                  separatorBuilder: (context, index) =>
-                      const Divider(color: AppTheme.borderColor),
-                  itemBuilder: (context, index) {
-                    final key = _cart.keys.elementAt(index);
-                    final item = _cart[key]!;
-                    final product = _allProducts.firstWhere(
-                      (p) => p.id == item.productId,
-                      orElse: () => Product(
-                        id: '',
-                        name: 'Unknown',
-                        sku: '',
-                        category: '',
-                        costPrice: 0,
-                        sellingPrice: item.unitPriceAtSale,
-                        quantityOnHand: 0,
-                        unit: '',
-                      ),
-                    );
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                product.name,
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                '${CurrencyFormatter.format(item.unitPriceAtSale)} each',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppTheme.secondaryColor,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.remove_circle_outline,
-                                color: AppTheme.secondaryColor,
-                              ),
-                              onPressed: () => _updateQuantity(key, -1),
-                            ),
-                            SizedBox(
-                              width: 30,
-                              child: Text(
-                                '${item.quantity}',
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_circle_outline,
-                                color: AppTheme.secondaryColor,
-                              ),
-                              onPressed: () => _updateQuantity(key, 1),
-                            ),
-                          ],
-                        ),
-                        SizedBox(
-                          width: 96,
-                          child: Text(
-                            '${CurrencyFormatter.format(item.unitPriceAtSale * item.quantity)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(
-                              color: AppTheme.primaryColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          color: AppTheme.cardBackground,
-          child: Column(
-            children: [
-              if (!kIsWeb)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _reprintLastReceipt,
-                    icon: const Icon(Icons.receipt_long),
-                    label: const Text('Reprint last receipt'),
-                  ),
-                ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ),
+              child: Row(
                 children: [
+                  const Icon(Icons.shopping_cart, color: AppTheme.textPrimary),
+                  const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
-                      'Total',
+                      'Current Sale',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: AppTheme.textPrimary,
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      '${CurrencyFormatter.format(_cartTotal)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                  if (_cart.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_sweep,
+                        color: AppTheme.errorColor,
                       ),
+                      onPressed: () => setState(() => _cart.clear()),
+                      tooltip: 'Clear Cart',
                     ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: AppTheme.textPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+            ),
+          const Divider(height: 1, color: AppTheme.borderColor),
+          Expanded(
+            child: _cart.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Cart is empty',
+                      style: TextStyle(color: AppTheme.secondaryColor),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _cart.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(color: AppTheme.borderColor),
+                    itemBuilder: (context, index) {
+                      final key = _cart.keys.elementAt(index);
+                      final item = _cart[key]!;
+                      final product = _allProducts.firstWhere(
+                        (p) => p.id == item.productId,
+                        orElse: () => Product(
+                          id: '',
+                          name: 'Unknown',
+                          sku: '',
+                          category: '',
+                          costPrice: 0,
+                          sellingPrice: item.unitPriceAtSale,
+                          quantityOnHand: 0,
+                          unit: '',
+                        ),
+                      );
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  product.name,
+                                  style: const TextStyle(
+                                    color: AppTheme.textPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  '${CurrencyFormatter.format(item.unitPriceAtSale)} each',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppTheme.secondaryColor,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: AppTheme.secondaryColor,
+                                ),
+                                onPressed: () => _updateQuantity(key, -1),
+                              ),
+                              SizedBox(
+                                width: 30,
+                                child: Text(
+                                  '${item.quantity}',
+                                  style: const TextStyle(
+                                    color: AppTheme.textPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.add_circle_outline,
+                                  color: AppTheme.secondaryColor,
+                                ),
+                                onPressed: () => _updateQuantity(key, 1),
+                              ),
+                            ],
+                          ),
+                          SizedBox(
+                            width: 96,
+                            child: Text(
+                              CurrencyFormatter.format(
+                                item.unitPriceAtSale * item.quantity,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                color: AppTheme.primaryColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: AppTheme.cardBackground,
+            child: Column(
+              children: [
+                if (!kIsWeb)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _reprintLastReceipt,
+                      icon: const Icon(Icons.receipt_long),
+                      label: const Text('Reprint last receipt'),
                     ),
                   ),
-                  onPressed: _cart.isEmpty ? null : _checkout,
-                  child: const Text(
-                    'Complete Sale',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Total',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        CurrencyFormatter.format(_cartTotal),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: AppTheme.textPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: _cart.isEmpty ? null : _checkout,
+                    child: const Text(
+                      'Complete Sale',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
-}
-
-
-
